@@ -18,7 +18,7 @@ public class QImage : MonoBehaviour
     {
         if(col.gameObject.tag.Equals("ImageRecycler"))
         {
-            uiBTL.imageRecycle(imageIndex);
+            uiBTL.ImageRecycle(imageIndex);
             btlManager.NextOnQueue(); //When the Q stops moving, start the next turn
         }
     }

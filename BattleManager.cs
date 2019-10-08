@@ -114,12 +114,12 @@ public class BattleManager : MonoBehaviour
 
     private void Start()
     {
-        Debug.Log("BTL Start");
+       // Debug.Log("BTL Start");
         uiBtl = UIBTL.instance;
         enemySpawner = EnemySpawner.instance;
         expManager = ExpManager.instance;
         uiBtl.numberOfEnemies = numberOfEnemies = enemySpawner.numberOfEnemies;
-        Debug.Log("____ " + numberOfEnemies);
+        //Debug.Log("____ " + numberOfEnemies);
         for(int i =0;i<5;i++)
         {
             enemySpawner.AddPos(enemyPos[i], i);
@@ -129,18 +129,7 @@ public class BattleManager : MonoBehaviour
         //Get player stats from partystats file
         for(int i=0;i<players.Length;i++)
         {
-            players[i].currentHP = PartyStats.chara[i].hitpoints;
-            players[i].maxHP = PartyStats.chara[i].TotalMaxHealth;
-            players[i].currentMP = PartyStats.chara[i].magicpoints;
-            players[i].maxMP = PartyStats.chara[i].TotalMaxMana;
-            players[i].atk = PartyStats.chara[i].TotalAttack;
-            players[i].def = PartyStats.chara[i].TotalDefence;
-            players[i].agi = PartyStats.chara[i].TotalAgility;
-            players[i].crit = PartyStats.chara[i].TotalCritical;
-            players[i].str = PartyStats.chara[i].TotalStrength;
-            players[i].speed = PartyStats.chara[i].TotalSpeed;
-            players[i].exp = PartyStats.chara[i].currentExperience;
-            players[i].expNeededForNextLevel = PartyStats.chara[i].neededExperience;
+            UpdatePlayerStats(i);
         }
     }
 
@@ -196,7 +185,7 @@ public class BattleManager : MonoBehaviour
         {
             allEnemiesAdded = true;
             //Temp code
-            expGain = 5 * totalLevels;
+            expGain = 6 * totalLevels;
             Debug.Log("EXP GAINNN " + expGain);
         }
 
@@ -207,12 +196,12 @@ public class BattleManager : MonoBehaviour
     public void StartBattle()
     {
         //Store and sort the agilities of the players and enemies in ascending order
-        battleInProgress = true;
+       
         foreach (PlayerInformtion p in players)
         {
             if (p.playerReference != null)//Make sure all the entries have players (i.e. what if we have less than 4 players)
             {
-                Debug.Log(p.playerReference.name + " Has been added to sort");
+                //Debug.Log(p.playerReference.name + " Has been added to sort");
                 pSpeeds.Add(p.speed);
             }
         }
@@ -245,7 +234,7 @@ public class BattleManager : MonoBehaviour
         //Check if the next on Q is a player or an enemy and call the correct function
         if (battleQueue[0].playerReference != null && battleQueue[0].enemyReference == null)
         {
-            uiBtl.showThisPlayerUI(battleQueue[0].playerIndex, battleQueue[0].name, battleQueue[0].playerReference);
+            uiBtl.ShowThisPlayerUI(battleQueue[0].playerIndex, battleQueue[0].name, battleQueue[0].playerReference);
         }
         else if (battleQueue[0].playerReference == null && battleQueue[0].enemyReference != null)
         {
@@ -389,8 +378,12 @@ public class BattleManager : MonoBehaviour
             //Update the remaining HP of players in the btl manager and the partystats
             players[i].currentHP = PartyStats.chara[i].hitpoints = players[i].playerReference.currentHP;
             players[i].currentMP = PartyStats.chara[i].magicpoints = players[i].playerReference.currentMP;
-            players[i].exp += expGain;
-            PartyStats.chara[i].currentExperience = players[i].exp;
+            //If the player ended the battle in rage mode, reset the rage to 0
+            if (players[i].playerReference.currentState == Player.playerState.Rage)
+            {
+                PartyStats.chara[i].rage = 0.0f;
+                players[i].playerReference.canRage = false;
+            }
             enemySpawner.numberOfEnemies = 0; //Reset the enemy spawner to get ready for the next battle
         }
 
@@ -425,7 +418,7 @@ public class BattleManager : MonoBehaviour
 
     public void LevelUp(int playerIndex)
     {
-       // Debug.Log(players[playerIndex].playerReference.name + " has leveled up!");
+        //Called from the Victory Screen
         //The new EXP is what remains after reaching the new level
         players[playerIndex].exp = players[playerIndex].exp - players[playerIndex].expNeededForNextLevel;
         //Update the party stats
@@ -437,10 +430,22 @@ public class BattleManager : MonoBehaviour
         //Update the needed exp for next levelup
         players[playerIndex].expNeededForNextLevel = PartyStats.chara[playerIndex].neededExperience;
         Debug.Log("You need this much to level up again! " + players[playerIndex].expNeededForNextLevel);
-        //If the player gains enough EXP to level up more than once
-       // if (players[playerIndex].exp >= players[playerIndex].expNeededForNextLevel)
-       // {
-       //     LevelUp(playerIndex);
-       // }
+    }
+
+    public void UpdatePlayerStats(int playerIndex)
+    {
+        players[playerIndex].currentHP = PartyStats.chara[playerIndex].hitpoints;
+        players[playerIndex].maxHP = PartyStats.chara[playerIndex].TotalMaxHealth;
+        players[playerIndex].currentMP = PartyStats.chara[playerIndex].magicpoints;
+        players[playerIndex].maxMP = PartyStats.chara[playerIndex].TotalMaxMana;
+        players[playerIndex].atk = PartyStats.chara[playerIndex].TotalAttack;
+        players[playerIndex].def = PartyStats.chara[playerIndex].TotalDefence;
+        players[playerIndex].agi = PartyStats.chara[playerIndex].TotalAgility;
+        players[playerIndex].crit = PartyStats.chara[playerIndex].TotalCritical;
+        players[playerIndex].str = PartyStats.chara[playerIndex].TotalStrength;
+        players[playerIndex].speed = PartyStats.chara[playerIndex].TotalSpeed;
+        players[playerIndex].exp = PartyStats.chara[playerIndex].currentExperience;
+        players[playerIndex].expNeededForNextLevel = PartyStats.chara[playerIndex].neededExperience;
+        players[playerIndex].playerReference.UpdatePlayerStats();
     }
 }

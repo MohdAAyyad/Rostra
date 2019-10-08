@@ -6,7 +6,11 @@ using UnityEngine.SceneManagement;
 
 public class UIBTL : MonoBehaviour
 {
+    //Instances
     private BattleManager btlManager;
+    private MainInventory inventory;
+    private SkillsInventory skills;
+
     public GameObject playerTurnIndicator;
     public GameObject enemyToAttackIndicator;
     public GameObject playerIndicatorPos0;
@@ -18,15 +22,10 @@ public class UIBTL : MonoBehaviour
     public GameObject rageModeIndicator1;
     public GameObject rageModeIndicator2;
     public GameObject highlighter;
-    public GameObject highlighterPos0;
-    public GameObject highlighterPos1;
-    public GameObject highlighterPos2;
-    public GameObject highlighterPos3;
-    public GameObject highlighterPos4; //Used to go back to the basic menu when inside the skills/items menu
+    public GameObject[] highlighiterPos;
     private int controlsIndicator; //Used to know which command has been chosen
     private int enemyIndicatorIndex;//Used to know which enemy is being chosen to be attacked
     private int activeRange; // Are we using the player's standard range of a skill's range?
-    private int previousEnemyIndicatorIndex; //Used to limit calls to become less visible
     [HideInInspector]
     public int currentPlayerTurnIndex; //Updated from the btl manager to know which player turn it is
 
@@ -44,10 +43,29 @@ public class UIBTL : MonoBehaviour
     public Text maxMP;
     public Image mpBar;
 
-    //Skills and Items Control Panel
-    public GameObject skillsItemsPanel;
-    public Text skillsItemsText;
+    //Skills Control Panel
+    public Image skillsPanel;
+    public GameObject[] skillsHPos;
+    public GameObject skillsHighlighter;
+    public Text[] skillNames;
+    public Text[] mpCosts;
+    public Text skillDescription;
+    public Text skillAtkValueText;
+    private bool firstTimeOpenedSkillsPanel; //Used to make sure we get the skills information only once per player per turn
 
+    //Items Control Panel
+    public GameObject itemsPanel;
+    public Text itemDescription;
+    public Sprite[] itemIcons; //Stores the icon of each item --> Temporary until the itemIcons array is ready in the MainInventory
+    public Image[] itemIconsInPanel; //Stores references to the icons inside the panel --> They change if we scroll down
+    public Text[] itemNames; //Displayes item name
+    public Text[] itemCount; //Displays item count
+    public Image itemsHighlighter; //Moves with the itemsPanelIndex to tell which item the player is currently using
+    public GameObject[] itemsHPos;
+    private int itemHPosIndex;
+    public GameObject upArrow;
+    public GameObject downArrow;
+    private int itemsPanelIndex; //Which item are we at now? Also represents the item ID since items will be ordered based on their IDs
 
     //Q UI Images
 
@@ -71,6 +89,7 @@ public class UIBTL : MonoBehaviour
     }
 
     private btlUIState currentState;
+    private btlUIState previousState; //Needed to know if we're choosing a player to use an item or use a skill
 
     //Enemies
     public Enemy[] enemies;
@@ -79,53 +98,14 @@ public class UIBTL : MonoBehaviour
 
     //Players
     private Player playerInControl;
+    private int playerIndicatorIndex; //Used to keep track where the playerindicator is when using items or skills
 
     //End Battle Screen
+    public Fade fadePanel;
+    public GameObject victoryPanel;
+    public GameObject defeatPanel;
     private bool battleHasEnded;
-    public GameObject endScreenPanel;
-    public Text fargasLevelUpBack;
-    public Text fargasLevelUpFore;
-    public Image fargasHP;
-    public Image fargasMP;
-    public Image fargasExp;
-    private int fargasCurrentExp;
-    private int fargasMaxExp;
-    private float fargasExpStep; //Used to know by how much to increase the exp bar == 1/maxExp
-    private int fargasExpGain;
-    private bool fargasAddinExp; //Used in update to increase EXP bar
-   
-    public Text freaLevelUpBack;
-    public Text freaLevelUpFore;
-    public Image freaHP;
-    public Image freaMP;
-    public Image freaExp;
-    private int freaCurrentExp;
-    private int freaMaxExp;
-    private float freaExpStep;
-    private int freaExpGain;
-    private bool freaAddinExp;
-
-    public Text arcelusLevelUpBack;
-    public Text arcelusLevelUpFore;
-    public Image arcelusHP;
-    public Image arcelusMP;
-    public Image arcelusExp;
-    private int arcelusCurrentExp;
-    private int arcelusMaxExp;
-    private float arcelusExpStep;
-    private int arcelusExpGain;
-    private bool arcelusAddinExp;
-
-    public Text oberonLevelUpBack;
-    public Text oberonLevelUpFore;
-    public Image oberonHP;
-    public Image oberonMP;
-    public Image oberonExp;
-    private int oberonCurrentExp;
-    private int oberonMaxExp;
-    private float oberonExpStep;
-    private int oberonExpGain;
-    private bool oberonAddinExp;
+    
 
     //Dialogue after battle
     public static bool conversationAfterBattle = false; //If true, a conversation will start right after the battle ends
@@ -153,18 +133,19 @@ public class UIBTL : MonoBehaviour
     void Start()
     {
         btlManager = BattleManager.instance;
+        inventory = MainInventory.invInstance;
+        skills = SkillsInventory.invInstance;
 
         enemies = new Enemy[5]; //Filled by the BTL Manager in Add Enemy
         enemiesDead = new bool[5]; //Every entry is turned to true by the enemy that dies
         controlsIndicator = 0; //Start at Attack
-        highlighter.transform.position = highlighterPos0.transform.position;
-        currentState = btlUIState.choosingBasicCommand;
+        highlighter.transform.position = highlighiterPos[0].transform.position;
+       previousState = currentState = btlUIState.choosingBasicCommand;
         playerName.text = "";
         enemyToAttackIndicator.gameObject.SetActive(false);
         playerTurnIndicator.SetActive(false);
         controlsPanel.gameObject.SetActive(false);
         enemyIndicatorIndex = 0;
-        previousEnemyIndicatorIndex = 0;
         activeRange = 0;
 
         imagesQ = new List<Sprite>();
@@ -188,19 +169,18 @@ public class UIBTL : MonoBehaviour
 
         //End Battle
         battleHasEnded = false;
-        endScreenPanel.SetActive(false);
-        fargasLevelUpBack.gameObject.SetActive(false);
-        fargasLevelUpFore.gameObject.SetActive(false);
-        freaLevelUpBack.gameObject.SetActive(false);
-        freaLevelUpFore.gameObject.SetActive(false);
-        arcelusLevelUpBack.gameObject.SetActive(false);
-        arcelusLevelUpFore.gameObject.SetActive(false);
-        oberonLevelUpBack.gameObject.SetActive(false);
-        oberonLevelUpFore.gameObject.SetActive(false);
+        //victoryPanel.gameObject.SetActive(false);
 
-        //Skills and Items
 
-        skillsItemsPanel.gameObject.SetActive(false);
+        //Skills
+        skillsPanel.gameObject.SetActive(false);
+        firstTimeOpenedSkillsPanel = false;
+
+        //Items
+        itemsPanel.gameObject.SetActive(false);
+        itemHPosIndex = 0;
+
+        playerIndicatorIndex = 0;
 
         //Dialogue after battle
         dialogueManager = DialogueManager.instance;
@@ -213,24 +193,26 @@ public class UIBTL : MonoBehaviour
         if(moveImagesNow)
         {
             //Called on End Turn
-            moveQImages();
+            MoveQImages();
+            
         }
 
         switch(currentState)
         {
             case btlUIState.choosingBasicCommand:
-                choosingBasicCommand();
+                ChoosingBasicCommand();
                 break;
             case btlUIState.choosingSkillsCommand:
-                choosingSkillsCommand();
+                ChoosingSkillsCommand();
                 break;
             case btlUIState.choosingItemsCommand:
-                choosingItemsCommand();
+                ChoosingItemsCommand();
                 break;
             case btlUIState.choosingEnemy:
-                choosingEnemy();
+                ChoosingEnemy();
                 break;
             case btlUIState.choosingPlayer:
+                ChoosingPlayer();
                 break;
             case btlUIState.battleEnd:
                 EndBattleUI();
@@ -241,17 +223,12 @@ public class UIBTL : MonoBehaviour
     public void AddImageToQ(Sprite nextOnQImage)
     {
         //Called from the BTL manager when adding characters to the Q
-
-        //Debug.Log("Adding image on Q");
-
         imagesQ.Add(nextOnQImage);
     }
 
     public void QueueIsReady()
     {
         //Called from the BTL manager when the Q has been built
-
-        //Debug.Log("Queue is Ready!  " + imagesQ.Count);
 
         //Fill up the Q until its of size 9. Only 6 will be on screen at a time however.
         switch(imagesQ.Count)
@@ -311,7 +288,7 @@ public class UIBTL : MonoBehaviour
 
     }
 
-    public void moveQImages()
+    public void MoveQImages()
     {
 
         //Once the images start moving, turn off the indicator next to the "RAGE" word and return the text color to normal if the previous player was in rage
@@ -356,7 +333,7 @@ public class UIBTL : MonoBehaviour
     }
 
     //Called when the image at the far right of the Q collides with the recycle image collider
-    public void imageRecycle(int imageIndex)
+    public void ImageRecycle(int imageIndex)
     {
         //We've hit the recycler, stop moving!
         moveImagesNow = false;
@@ -395,7 +372,7 @@ public class UIBTL : MonoBehaviour
     }
 
     //Called from the BTL Manager to update the UI based on which player's turn it is
-    public void showThisPlayerUI(int playerIndex, string name, Player playerReference)
+    public void ShowThisPlayerUI(int playerIndex, string name, Player playerReference)
     {
         if(playerReference.currentState != Player.playerState.Waiting && !battleHasEnded)
         {
@@ -452,32 +429,32 @@ public class UIBTL : MonoBehaviour
         }
     }
 
-    private void choosingBasicCommand()
+    private void ChoosingBasicCommand()
     {
-        //Debug.Log("Choosing Basic Commands");
         if (!moveImagesNow) //Don't allow the player to choose a command until the Q has settled down
         {
             switch (controlsIndicator)
             {
                 //If the player is in rage mode, only "Attack" can be chosen
                 case 0://Highlighter is at attack
-                    if ((Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow)) && playerInControl.currentState!=Player.playerState.Rage)
+                    if (Input.GetKeyDown(KeyCode.DownArrow) && playerInControl.currentState!=Player.playerState.Rage)
                     {
                         controlsIndicator = 1;
-                        highlighter.transform.position = highlighterPos1.transform.position;
+                        highlighter.transform.position = highlighiterPos[1].transform.position;
                     }
                     else if (Input.GetKeyDown(KeyCode.RightArrow) && playerInControl.currentState != Player.playerState.Rage)
                     {
                         controlsIndicator = 2;
-                        highlighter.transform.position = highlighterPos2.transform.position;
+                        highlighter.transform.position = highlighiterPos[2].transform.position;
                     }
                     else if(Input.GetKeyDown(KeyCode.LeftArrow) && playerInControl.canRage && playerInControl.currentState != Player.playerState.Rage)
                     {
                         controlsIndicator = 4;
-                        highlighter.transform.position = highlighterPos4.transform.position;
+                        highlighter.transform.position = highlighiterPos[4].transform.position;
                     }
                     else if (Input.GetKeyDown(KeyCode.Space)) //Player has chosen attack
                     {
+                        previousState = btlUIState.choosingBasicCommand;
                         currentState = btlUIState.choosingEnemy;
                         enemyToAttackIndicator.SetActive(true);
                         activeRange = playerInControl.range;
@@ -492,21 +469,19 @@ public class UIBTL : MonoBehaviour
                                 break;
                             }
                         }
-
-                        MakeChosenEnemyMorePrompt(enemyIndicatorIndex);
                     }
                     break;
 
                 case 1://Highlighter is at Guard
-                    if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
+                    if (Input.GetKeyDown(KeyCode.UpArrow))
                     {
                         controlsIndicator = 0;
-                        highlighter.transform.position = highlighterPos0.transform.position;
+                        highlighter.transform.position = highlighiterPos[0].transform.position;
                     }
-                    else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
+                    else if (Input.GetKeyDown(KeyCode.RightArrow))
                     {
                         controlsIndicator = 3;
-                        highlighter.transform.position = highlighterPos3.transform.position;
+                        highlighter.transform.position = highlighiterPos[3].transform.position;
                     }
                     else if (Input.GetKeyDown(KeyCode.Space)) //Player has chosen Guard
                     {
@@ -519,23 +494,38 @@ public class UIBTL : MonoBehaviour
                     if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
                     {
                         controlsIndicator = 3;
-                        highlighter.transform.position = highlighterPos3.transform.position;
+                        highlighter.transform.position = highlighiterPos[3].transform.position;
                     }
                     else if (Input.GetKeyDown(KeyCode.LeftArrow))
                     {
                         controlsIndicator = 0;
-                        highlighter.transform.position = highlighterPos0.transform.position;
+                        highlighter.transform.position = highlighiterPos[0].transform.position;
                     }
                     else if(Input.GetKeyDown(KeyCode.RightArrow) && playerInControl.canRage)
                     {
                         controlsIndicator = 4;
-                        highlighter.transform.position = highlighterPos4.transform.position;
+                        highlighter.transform.position = highlighiterPos[4].transform.position;
                     }
                     else if (Input.GetKeyDown(KeyCode.Space)) //Player has chosen Skills
                     {
-                        skillsItemsPanel.gameObject.SetActive(true);
-                        skillsItemsText.text = "Your skills are in another castle...ughh In another build 0.015 ;)";
+                        previousState = btlUIState.choosingBasicCommand;
+                        if (!firstTimeOpenedSkillsPanel)
+                        {
+                            //Get the name of the skills and thier MP costs if this is the first time this player opens the skills panel
+                            for (int i = 0; i < 4; i++)
+                            {
+                                skillNames[i].text = skills.SkillName(PartySkills.skills[playerInControl.playerIndex].equippedSkills[i]);
+                                mpCosts[i].text = "MP: " + skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[i])[5].ToString();
+                            }
+                            firstTimeOpenedSkillsPanel = true;
+                        }
+
+                        skillsPanel.gameObject.SetActive(true);
                         currentState = btlUIState.choosingSkillsCommand;
+                        skillsHighlighter.gameObject.transform.position = skillsHPos[0].transform.position;
+                        skillDescription.text = skills.SkillDescription(PartySkills.skills[playerInControl.playerIndex].equippedSkills[0]).ToString();
+                        skillAtkValueText.text = skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[0])[0].ToString();
+                        controlsIndicator = 0;
                     }
                     break;
                 case 3:
@@ -543,22 +533,38 @@ public class UIBTL : MonoBehaviour
                     if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
                     {
                         controlsIndicator = 2;
-                        highlighter.transform.position = highlighterPos2.transform.position;
+                        highlighter.transform.position = highlighiterPos[2].transform.position;
                     }
                     else if (Input.GetKeyDown(KeyCode.LeftArrow))
                     {
                         controlsIndicator = 1;
-                        highlighter.transform.position = highlighterPos1.transform.position;
+                        highlighter.transform.position = highlighiterPos[1].transform.position;
                     }
                     else if(Input.GetKeyDown(KeyCode.RightArrow) && playerInControl.canRage)
                     {
                         controlsIndicator = 4;
-                        highlighter.transform.position = highlighterPos4.transform.position;
+                        highlighter.transform.position = highlighiterPos[4].transform.position;
                     }
                     else if (Input.GetKeyDown(KeyCode.Space)) //Player has chosen Items
                     {
-                        skillsItemsPanel.gameObject.SetActive(true);
-                        skillsItemsText.text = "Error 404 Items not found...Oh wait...Found them...In another build 0.015 ;)";
+                        previousState = btlUIState.choosingBasicCommand;
+                        //Reset the items panel
+                        itemsPanel.gameObject.SetActive(true);
+                        itemsHighlighter.gameObject.SetActive(true);
+                        itemsHighlighter.transform.position = itemsHPos[0].transform.position;
+                        itemDescription.text = inventory.ItemDescription(inventory.invItem[inventory.consumableInv[0], 0]);
+                        itemsHighlighter.gameObject.transform.position = itemsHPos[0].transform.position;
+                        itemHPosIndex = 0;
+                        upArrow.gameObject.SetActive(false);
+                        downArrow.gameObject.SetActive(true);
+                        itemsPanelIndex = 0;
+                        //Show three the first three items in the inventory
+                        for(int i =0;i<3 && i<inventory.consumableInv.Count;i++)
+                        {
+                                itemIconsInPanel[i].sprite = itemIcons[inventory.invItem[inventory.consumableInv[itemsPanelIndex + i], 0]];
+                                itemNames[i].text = inventory.ItemName(inventory.invItem[inventory.consumableInv[itemsPanelIndex + i], 0]);
+                                itemCount[i].text = inventory.invItem[inventory.consumableInv[itemsPanelIndex + i], 1].ToString();
+                        }
                         currentState = btlUIState.choosingItemsCommand;
                     }
                     break;
@@ -566,17 +572,17 @@ public class UIBTL : MonoBehaviour
                     if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
                     {
                         controlsIndicator = 3;
-                        highlighter.transform.position = highlighterPos3.transform.position;
+                        highlighter.transform.position = highlighiterPos[3].transform.position;
                     }
                     else if (Input.GetKeyDown(KeyCode.LeftArrow))
                     {
                         controlsIndicator = 2;
-                        highlighter.transform.position = highlighterPos2.transform.position;
+                        highlighter.transform.position = highlighiterPos[2].transform.position;
                     }
                     else if (Input.GetKeyDown(KeyCode.RightArrow))
                     {
                         controlsIndicator = 0;
-                        highlighter.transform.position = highlighterPos0.transform.position;
+                        highlighter.transform.position = highlighiterPos[0].transform.position;
                     }
                     else if (Input.GetKeyDown(KeyCode.Space)) //Player has chosen Rage
                     {
@@ -587,7 +593,7 @@ public class UIBTL : MonoBehaviour
                         playerInControl.Rage(); //Go into rage mode
                         rageModeIndicator1.gameObject.SetActive(true);
                         rageModeIndicator2.gameObject.SetActive(true);
-                        highlighter.transform.position = highlighterPos0.transform.position;
+                        highlighter.transform.position = highlighiterPos[0].transform.position;
                         controlsIndicator = 0;
                     }
                     break;
@@ -595,51 +601,336 @@ public class UIBTL : MonoBehaviour
         }
     }
 
-    private void choosingSkillsCommand()
+    private void ChoosingSkillsCommand()
     {
-        if(Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Space))
+        if(Input.GetKeyDown(KeyCode.Escape))
         {
-            skillsItemsPanel.gameObject.SetActive(false);
+            skillsPanel.gameObject.SetActive(false);
+            controlsIndicator = 2; //Back to skills in the choosingbasicommands
             currentState = btlUIState.choosingBasicCommand;
         }
 
-        switch (controlsIndicator)
+        if (Input.GetKeyDown(KeyCode.DownArrow) && controlsIndicator < 3)
         {
-            case 0:
-                break;
-            case 1:
-                break;
-            case 2:
-                break;
-            case 3:
-                break;
-            case 4:
-                break;
+            //Make sure there's a skill below the one highlighted right now
+            if (PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator + 1] != (int)SKILLS.NO_SKILL)
+            {
+                controlsIndicator++;
+            }
         }
+        else if (Input.GetKeyDown(KeyCode.DownArrow) && controlsIndicator >= 3)
+        {
+            controlsIndicator = 0;
+        }
+        else if(Input.GetKeyDown(KeyCode.UpArrow) && controlsIndicator > 0)
+        {
+            controlsIndicator--;
+        }
+        else if (Input.GetKeyDown(KeyCode.UpArrow) && controlsIndicator <= 0)
+        {
+            //Make sure the player goes to the last equipped skills, not necessarily number 3
+            for(int i = 3; i>0; i--)
+            {
+                if (PartySkills.skills[playerInControl.playerIndex].equippedSkills[i] != (int)SKILLS.NO_SKILL)
+                {
+                    controlsIndicator = i;
+                    break;
+                }
+            }            
+        }
+        else if (Input.GetKeyDown(KeyCode.Space))
+        {
+
+            //Choose skill, make sure you have enough MP to use it, then check if it targets players or enemies       
+            if (playerInControl.currentMP >= skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[5])
+            {
+                skillsPanel.gameObject.SetActive(false);
+                switch (playerInControl.SkillSearch(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator]))
+                {
+                    //0: Target one enemy
+                    //1: Target all enemies
+                    //2: Target row of enemies
+                    //4: Target one player
+                    //5: Target all players
+
+                    case 0:
+                        Debug.Log("Skill search yeileded 0");
+                        enemyIndicatorIndex = 0; //Reset the enemy indicator index
+                        enemyToAttackIndicator.SetActive(true);
+                        previousState = btlUIState.choosingSkillsCommand;
+                        currentState = btlUIState.choosingEnemy;
+                        break;
+                    case 1:
+                        break;
+                    case 2:
+                        break;
+                    case 3:
+                        break;
+                    case 4:
+                        break;
+                    case 5:
+                        previousState = btlUIState.choosingSkillsCommand;
+                        currentState = btlUIState.choosingPlayer;
+                        break;
+                }
+            }
+        }
+
+        skillsHighlighter.gameObject.transform.position = skillsHPos[controlsIndicator].transform.position;
+        skillDescription.text = skills.SkillDescription(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator]).ToString();
+        skillAtkValueText.text = "ATK: " + skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[0].ToString();
+
     }
 
-    private void choosingItemsCommand()
+    private void ChoosingItemsCommand()
     {
-        if (Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Space))
+        if (Input.GetKeyDown(KeyCode.Escape))
         {
-            skillsItemsPanel.gameObject.SetActive(false);
+            itemsPanel.gameObject.SetActive(false);
+            controlsIndicator = 3; //Back to items in the choosingbasicommands
+            itemsPanelIndex = 0;
             currentState = btlUIState.choosingBasicCommand;
         }
+        else if(Input.GetKeyDown(KeyCode.Space))//Player has chosen an item
+        {
+            //Make sure you choose an item that is usable and not equipable
+            previousState = btlUIState.choosingItemsCommand; //Needed to know what to reference when choosing the player
+            playerTurnIndicator.transform.position = playerIndicatorPos0.transform.position; //Move the player indicator on top of Fargas for now
+            playerIndicatorIndex = 0;
+            currentState = btlUIState.choosingPlayer;
+        }
+        else if(Input.GetKeyDown(KeyCode.DownArrow) && itemsPanelIndex < 29)
+        {
+            //Keep track of where the highlighter is
+            if (itemHPosIndex + 1 < inventory.consumableInv.Count)
+            {
+                itemHPosIndex++;
+
+                //Know which items to display
+                itemsPanelIndex++;
+            }
+
+            if(itemHPosIndex==1)
+            {
+                itemsHighlighter.transform.position = itemsHPos[1].transform.position;
+            }
+            else if(itemHPosIndex==2)
+            {
+                itemsHighlighter.transform.position = itemsHPos[2].transform.position;
+            }
+            else
+            {
+                itemHPosIndex = 0;
+                itemsHighlighter.transform.position = itemsHPos[0].transform.position;
+            }
+
+
+            itemDescription.text = inventory.ItemDescription(inventory.invItem[inventory.consumableInv[itemsPanelIndex],0]);
+            if(itemsPanelIndex%3 == 0)
+            {
+                //We're mirroring the order of the items in the inventory UI and only showing usable items
+                for (int i = 0; i < 3 && i < inventory.consumableInv.Count; i++)
+                {
+                        itemIconsInPanel[i].sprite = itemIcons[inventory.invItem[inventory.consumableInv[itemsPanelIndex + i], 0]];
+                        itemNames[i].text = inventory.ItemName(inventory.invItem[inventory.consumableInv[itemsPanelIndex + i], 0]);
+                        itemCount[i].text = inventory.invItem[inventory.consumableInv[itemsPanelIndex + i], 1].ToString();
+                }
+
+                //Check if we're at the last three items -->This should be changed to work with the inventory count. Will change once we decide on the inventory count
+                if (itemsPanelIndex == 27)
+                {
+                    downArrow.gameObject.SetActive(false);
+                    upArrow.gameObject.SetActive(true);
+                }
+                else
+                {
+                    downArrow.gameObject.SetActive(true);
+                    upArrow.gameObject.SetActive(true);
+                }
+            }
+
+        }
+        else if(Input.GetKeyDown(KeyCode.UpArrow) && itemsPanelIndex > 0)
+        {
+            if (itemHPosIndex - 1 >= 0)
+            {
+                itemHPosIndex--;
+                //Know which items to display
+                itemsPanelIndex--;
+            }
+
+
+
+            itemDescription.text = inventory.ItemDescription(inventory.invItem[inventory.consumableInv[itemsPanelIndex],0]);
+            //Check if we're back to the previous 3 items
+            //Will turn it into a for loop when I'm smart enough
+            if (itemsPanelIndex % 3 != 0 && itemHPosIndex < 0)
+            {
+                    itemIconsInPanel[0].sprite = itemIcons[inventory.invItem[inventory.consumableInv[itemsPanelIndex - 2], 0]];
+                    itemNames[0].text = inventory.ItemName(inventory.invItem[inventory.consumableInv[itemsPanelIndex - 2], 0]);
+                    itemCount[0].text = inventory.invItem[inventory.consumableInv[itemsPanelIndex - 2], 1].ToString();
+
+                    itemIconsInPanel[1].sprite = itemIcons[inventory.invItem[inventory.consumableInv[itemsPanelIndex - 1], 0]];
+                    itemNames[1].text = inventory.ItemName(inventory.invItem[inventory.consumableInv[itemsPanelIndex - 1], 0]);
+                    itemCount[1].text = inventory.invItem[inventory.consumableInv[itemsPanelIndex - 1], 1].ToString();
+             
+                    itemIconsInPanel[2].sprite = itemIcons[inventory.invItem[inventory.consumableInv[itemsPanelIndex], 0]];
+                    itemNames[2].text = inventory.ItemName(inventory.invItem[inventory.consumableInv[itemsPanelIndex], 0]);
+                    itemCount[2].text = inventory.invItem[inventory.consumableInv[itemsPanelIndex], 1].ToString();
+
+                itemsHighlighter.transform.position = itemsHPos[2].transform.position;
+                itemHPosIndex = 2;
+
+                //Check if we're back to the very first three
+                if (itemsPanelIndex == 2)
+                {
+                    downArrow.gameObject.SetActive(true);
+                    upArrow.gameObject.SetActive(false);
+                }
+                else
+                {
+                    downArrow.gameObject.SetActive(true);
+                    upArrow.gameObject.SetActive(true);
+                }
+            }
+            else if (itemHPosIndex == 1)
+            {
+                itemsHighlighter.transform.position = itemsHPos[1].transform.position;
+            }
+            else if (itemHPosIndex == 0)
+            {
+                itemsHighlighter.transform.position = itemsHPos[0].transform.position;
+            }
+            
+        }
     }
 
-    private void choosingEnemy()
+    private void ChoosingPlayer()
+    {
+        if(Input.GetKeyDown(KeyCode.Escape))
+        {
+            switch(playerInControl.playerIndex)
+            {
+                case 0:
+                    playerTurnIndicator.transform.position = playerIndicatorPos0.transform.position;
+                    break;
+                case 1:
+                    playerTurnIndicator.transform.position = playerIndicatorPos1.transform.position;
+                    break;
+                case 2:
+                    playerTurnIndicator.transform.position = playerIndicatorPos2.transform.position;
+                    break;
+                case 3:
+                    playerTurnIndicator.transform.position = playerIndicatorPos3.transform.position;
+                    break;
+            }
+            if (previousState == btlUIState.choosingItemsCommand)
+            {
+                currentState = btlUIState.choosingItemsCommand;
+            }
+            else if (previousState == btlUIState.choosingSkillsCommand)
+            {
+                skillsPanel.gameObject.SetActive(true);
+                currentState = btlUIState.choosingSkillsCommand;
+            }
+        }
+        if(playerIndicatorIndex == 0)
+        {
+            if(Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                playerIndicatorIndex = 1;//Go to Oberon
+                playerTurnIndicator.transform.position = playerIndicatorPos1.transform.position;
+
+            }
+            else if(Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
+            {
+                playerIndicatorIndex = 3;//Go to Arcelus
+                playerTurnIndicator.transform.position = playerIndicatorPos3.transform.position;
+            }
+
+        }
+        else if (playerIndicatorIndex == 1)
+        {
+            if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                playerIndicatorIndex = 0;//Go to Fargas
+                playerTurnIndicator.transform.position = playerIndicatorPos0.transform.position;
+
+            }
+            else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
+            {
+                playerIndicatorIndex = 2;//Go to Frea
+                playerTurnIndicator.transform.position = playerIndicatorPos2.transform.position;
+            }
+        }
+        else if (playerIndicatorIndex == 2)
+        {
+            if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                playerIndicatorIndex = 3;//Go to Arcelus
+                playerTurnIndicator.transform.position = playerIndicatorPos3.transform.position;
+
+            }
+            else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
+            {
+                playerIndicatorIndex = 1;//Go to Oberon
+                playerTurnIndicator.transform.position = playerIndicatorPos1.transform.position;
+            }
+        }
+        else if (playerIndicatorIndex == 3)
+        {
+            if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
+            {
+                playerIndicatorIndex = 2;//Go to Frea
+                playerTurnIndicator.transform.position = playerIndicatorPos2.transform.position;
+
+            }
+            else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
+            {
+                playerIndicatorIndex = 0;//Go to Fargas
+                playerTurnIndicator.transform.position = playerIndicatorPos0.transform.position;
+            }
+        }
+
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            if (previousState == btlUIState.choosingItemsCommand)
+            {
+                if (btlManager.players[playerIndicatorIndex].playerReference.currentState != Player.playerState.Rage)
+                {
+                    inventory.ItemUseFunction(inventory.invItem[inventory.consumableInv[itemsPanelIndex], 0], inventory.consumableInv[itemsPanelIndex], playerIndicatorIndex);
+                    itemCount[itemHPosIndex].text = inventory.invItem[inventory.consumableInv[0], 1].ToString();
+                    itemsPanelIndex = 0; //Reset the itemsPanelIndex
+                    btlManager.players[playerIndicatorIndex].playerReference.UpdatePlayerStats();
+                    playerInControl.ForcePlayerTurnAnimationOff();
+                    EndTurn();
+                }
+            }
+            else if(previousState == btlUIState.choosingSkillsCommand)
+            {
+
+            }
+        }
+    }
+
+    private void ChoosingEnemy()
     {
         //Leave choosing enemy
         if(Input.GetKeyDown(KeyCode.Escape))
         {
-            ResetVisibilityForAllEnemies();
+            
             enemyToAttackIndicator.gameObject.SetActive(false);
-            currentState = btlUIState.choosingBasicCommand;
-        }
-        //If we're at the same enemy, don't call the visible function again
-        if (previousEnemyIndicatorIndex != enemyIndicatorIndex)
-        {
-            MakeChosenEnemyMorePrompt(enemyIndicatorIndex);
+
+            if (previousState == btlUIState.choosingBasicCommand)
+            {
+                currentState = btlUIState.choosingBasicCommand;
+            }
+            else if (previousState == btlUIState.choosingSkillsCommand)
+            {
+                skillsPanel.gameObject.SetActive(true);
+                currentState = btlUIState.choosingSkillsCommand;
+            }
+
         }
 
         switch (enemyIndicatorIndex)
@@ -649,7 +940,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[1] != null && enemiesDead[1]==false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 1;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[1].transform.position;
                     }
@@ -658,7 +948,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[3] != null && enemiesDead[3] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 3;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[3].transform.position;
                     }
@@ -667,7 +956,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[2] != null && enemiesDead[2] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 2;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[2].transform.position;
                     }
@@ -678,7 +966,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[2] != null && enemiesDead[2] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 2;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[2].transform.position;
                     }
@@ -687,7 +974,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[4] != null && enemiesDead[4] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 4;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[4].transform.position;
                     }
@@ -696,7 +982,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[0] != null && enemiesDead[0] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 0;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[0].transform.position;
                     }
@@ -707,7 +992,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[0] != null && enemiesDead[0] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 0;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[0].transform.position;
                     }
@@ -716,7 +1000,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[3] != null && enemiesDead[3] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 3;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[3].transform.position;
                     }
@@ -725,7 +1008,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[1] != null && enemiesDead[1] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 1;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[1].transform.position;
                     }
@@ -736,7 +1018,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[4] != null && enemiesDead[4] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 4;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[4].transform.position;
                     }
@@ -745,7 +1026,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[0] != null && enemiesDead[0] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 0;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[0].transform.position;
                     }
@@ -754,7 +1034,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[4] != null  && enemiesDead[4] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 4;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[4].transform.position;
                     }
@@ -765,7 +1044,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[3] != null && enemiesDead[3] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 3;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[3].transform.position;
                     }
@@ -774,7 +1052,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[2] != null && enemiesDead[2] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 2;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[2].transform.position;
                     }
@@ -783,7 +1060,6 @@ public class UIBTL : MonoBehaviour
                 {
                     if (enemies[3] != null && enemiesDead[3] == false)
                     {
-                        previousEnemyIndicatorIndex = enemyIndicatorIndex;
                         enemyIndicatorIndex = 3;
                         enemyToAttackIndicator.transform.position = enemyIndicatorPosArray[3].transform.position;
                     }
@@ -793,42 +1069,16 @@ public class UIBTL : MonoBehaviour
 
         if(Input.GetKeyDown(KeyCode.Space))
         {
-            playerInControl.Attack(enemies[enemyIndicatorIndex]);
-        }
-    }
-
-    public void MakeChosenEnemyMorePrompt(int enemyIndex) //When the player chooses an enemy to attack, the other enemies should be less visible
-    {
-        if (enemies[enemyIndex] != null)
-        {
-            enemies[enemyIndex].resetVisibility();
-        }
-
-        for(int i =0;i<5;i++)
-        {
-            if(i!=enemyIndex && enemies[i]!=null)
+            if (previousState == btlUIState.choosingBasicCommand)
             {
-                enemies[i].becomeLessVisbile();
+                playerInControl.Attack(enemies[enemyIndicatorIndex]);
+            }
+            else if(previousState == btlUIState.choosingSkillsCommand)
+            {
+                Debug.Log("Enemy has been chosen");
+                playerInControl.UseSkillOnEnemy(enemies[enemyIndicatorIndex]);
             }
         }
-    }
-
-    public void ResetVisibilityForAllEnemies()
-    {
-        //Reset the visibility of all enemies
-        for (int i = 0; i < 5; i++)
-        {
-            if (enemies[i] != null)
-            {
-                enemies[i].resetVisibility();
-            }
-        }
-
-    }
-
-    private void choosingPlayer()
-    {
-
     }
 
     public void RageOptionTextColor()
@@ -869,7 +1119,11 @@ public class UIBTL : MonoBehaviour
         playerTurnIndicator.SetActive(false);
         enemyToAttackIndicator.SetActive(false);
         controlsPanel.gameObject.SetActive(false);
+        itemsPanel.gameObject.SetActive(false);
         moveImagesNow = true;
+        firstTimeOpenedSkillsPanel = false; //Get ready for the next player in case they want to use thier skills
+        highlighter.gameObject.transform.position = highlighiterPos[0].transform.position;
+        playerInControl.ForcePlayerTurnAnimationOff();
     }
 
     public void EnemyIsDead(int enemyIndex)
@@ -883,49 +1137,10 @@ public class UIBTL : MonoBehaviour
                 i++;
                 if(i>=numberOfEnemies)
                 {
-
-                    //Enable the screen and start increasing the EXP
-                    //Must check if all the players are still alive but for now they are
-                    endScreenPanel.gameObject.SetActive(true);
-
-                    fargasAddinExp = true;
-                    fargasHP.fillAmount = btlManager.players[0].playerReference.hpImage.fillAmount;
-                    fargasMP.fillAmount = btlManager.players[0].playerReference.currentMP/ btlManager.players[0].playerReference.maxMP;
-                    fargasCurrentExp = btlManager.players[0].exp;
-                    fargasMaxExp = btlManager.players[0].expNeededForNextLevel;
-                    fargasExp.fillAmount = btlManager.players[0].exp / fargasMaxExp;
-                    fargasExpStep = 1.0f/ fargasMaxExp;
-                    fargasExpGain = btlManager.expGain;
-
-
-                    oberonAddinExp = true;
-                    oberonHP.fillAmount = btlManager.players[1].playerReference.hpImage.fillAmount;
-                    oberonMP.fillAmount = btlManager.players[1].playerReference.currentMP / btlManager.players[1].playerReference.maxMP;
-                    oberonCurrentExp = btlManager.players[1].exp;
-                    oberonMaxExp = btlManager.players[1].expNeededForNextLevel;
-                    oberonExp.fillAmount = btlManager.players[1].exp / oberonMaxExp;
-                    oberonExpStep = 1.0f/ oberonMaxExp;
-                    oberonExpGain = btlManager.expGain; 
-
-                    freaAddinExp = true;
-                    freaHP.fillAmount = btlManager.players[2].playerReference.hpImage.fillAmount;
-                    freaMP.fillAmount = btlManager.players[2].playerReference.currentMP / btlManager.players[2].playerReference.maxMP;
-                    freaCurrentExp = btlManager.players[2].exp;
-                    freaMaxExp = btlManager.players[2].expNeededForNextLevel;
-                    freaExp.fillAmount = btlManager.players[2].exp / freaMaxExp;
-                    freaExpStep = 1.0f/ freaMaxExp;
-                    freaExpGain = btlManager.expGain;
-
-                    arcelusAddinExp = true;
-                    arcelusHP.fillAmount = btlManager.players[3].playerReference.hpImage.fillAmount;
-                    arcelusMP.fillAmount = btlManager.players[3].playerReference.currentMP / btlManager.players[3].playerReference.maxMP;
-                    arcelusCurrentExp = btlManager.players[3].exp;
-                    arcelusMaxExp = btlManager.players[3].expNeededForNextLevel;
-                    arcelusExp.fillAmount = btlManager.players[3].exp / arcelusMaxExp;
-                    arcelusExpStep = 1.0f / arcelusMaxExp;
-                    arcelusExpGain = btlManager.expGain;
-
-                    currentState = btlUIState.battleEnd;
+                    Debug.Log("End it ");
+                    //Start fading in the end battle screen
+                    fadePanel.FlipFadeToVictory();
+                    
                     //Make sure to turn off the indicators at the end of the turn, this is to make sure the end screen does not show the indicators
                     rageModeIndicator1.gameObject.SetActive(false);
                     rageModeIndicator2.gameObject.SetActive(false);
@@ -938,114 +1153,30 @@ public class UIBTL : MonoBehaviour
 
     private void EndBattleUI()
     {
-        if(Input.GetKeyDown(KeyCode.Space) && !fargasAddinExp && !freaAddinExp && !oberonAddinExp && !arcelusAddinExp)
-        {
-            SceneManager.UnloadSceneAsync(SceneManager.GetSceneByName("Queue Scene"));
             //If there's a conversation right after the battle, invoke the function in the dialogue manager
-            if(conversationAfterBattle)
-            {
-                dialogueManager.StartConversation(dialogueContainer.doneFight);
-            }
-        }
-        
-        //Fargas
-        if(fargasAddinExp)
-        {
-            if(fargasExp.fillAmount < 1.0f && fargasCurrentExp < fargasExpGain)
-            {
-                fargasCurrentExp++;
-                fargasExp.fillAmount += fargasExpStep;
-            }
-            //If the player has leveled up, get the new max exp and 
-            else if(fargasCurrentExp >= fargasMaxExp || fargasExp.fillAmount>=1.0f)
-            {
-                btlManager.LevelUp(0);
-                fargasMaxExp = btlManager.players[0].expNeededForNextLevel;
-                Debug.Log("UI stuff: Current: " + fargasCurrentExp + "  Max:  " + fargasMaxExp);
-                fargasExpStep = 1.0f / fargasMaxExp;
-                fargasExp.fillAmount = 0.0f;
-                fargasLevelUpBack.gameObject.SetActive(true);
-                fargasLevelUpFore.gameObject.SetActive(true);
-            }
-            //If we have reached the exp gain, stop
-            else if(fargasCurrentExp>=fargasExpGain)
-            {
-                fargasAddinExp = false;
-            }
-        }
+           // if(conversationAfterBattle)
+           // {
+           //     dialogueManager.StartConversation(dialogueContainer.doneFight);
+           // }
+       
+    }
 
-        //Oberon
-        if (oberonAddinExp)
+    public void StartShowingEndScreen(bool isVictory)
+    {
+        if(isVictory)
         {
-            if (oberonExp.fillAmount < 1.0 && oberonCurrentExp < oberonExpGain)
-            {
-                oberonCurrentExp++;
-                oberonExp.fillAmount += oberonExpStep;
-            }
-            //If the player has leveled up, get the new max exp and 
-            else if (oberonCurrentExp >= oberonMaxExp || oberonExp.fillAmount >= 1.0f)
-            {
-                btlManager.LevelUp(1);
-                oberonMaxExp = btlManager.players[1].expNeededForNextLevel;
-                oberonExpStep = 1.0f / oberonMaxExp;
-                oberonExp.fillAmount = 0.0f;
-                oberonLevelUpBack.gameObject.SetActive(true);
-                oberonLevelUpFore.gameObject.SetActive(true);
-            }
-            else if (oberonCurrentExp >= oberonExpGain)
-            {
-                oberonAddinExp = false;
-            }
+            currentState = btlUIState.battleEnd;         
         }
+        else
+        {
 
-        //Frea
-        if (freaAddinExp)
-        {
-            if (freaExp.fillAmount < 1.0f && freaCurrentExp < freaExpGain)
-            {
-                freaCurrentExp++;
-                freaExp.fillAmount += freaExpStep;
-            }
-            //If the player has leveled up, get the new max exp and 
-            else if (freaCurrentExp >= freaMaxExp || freaExp.fillAmount >= 1.0f)
-            {
-                btlManager.LevelUp(2);
-                freaMaxExp = btlManager.players[2].expNeededForNextLevel;
-                freaExpStep = 1.0f / freaMaxExp;
-                freaExp.fillAmount = 0.0f;
-                freaLevelUpBack.gameObject.SetActive(true);
-                freaLevelUpFore.gameObject.SetActive(true);
-            }
-            else if (freaCurrentExp >= freaExpGain)
-            {
-                freaAddinExp = false;
-            }
         }
-        
-        //Arcelus
-        if (arcelusAddinExp)
-        {
-            if (arcelusExp.fillAmount < 1.0f && arcelusCurrentExp < arcelusExpGain)
-            {
-                arcelusCurrentExp++;
-                arcelusExp.fillAmount += arcelusExpStep;
-            }
-            //If the player has leveled up, get the new max exp and 
-            else if (arcelusCurrentExp >= arcelusMaxExp || arcelusExp.fillAmount >= 1.0f)
-            {
-                btlManager.LevelUp(3);
-                arcelusMaxExp = btlManager.players[3].expNeededForNextLevel;
-                arcelusExpStep = 1.0f / arcelusMaxExp;
-                arcelusExp.fillAmount = 0.0f;
-                arcelusLevelUpBack.gameObject.SetActive(true);
-                arcelusLevelUpFore.gameObject.SetActive(true);
-            }
-            else if (arcelusCurrentExp >= arcelusExpGain)
-            {
-                arcelusAddinExp = false;
-            }
-        }
+    }
 
+    private void UpdatePlayerStats(int playerIndex)
+    {
+        btlManager.UpdatePlayerStats(playerIndex);
+        playerInControl.ForcePlayerTurnAnimationOff();
     }
 
 

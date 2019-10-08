@@ -7,6 +7,7 @@ public class WMEnemy : MonoBehaviour
 {
     public Enemy[] enemies;
     public int[] enemyLevels;
+    public Fade fadePanel;
 
     public EnemySpawner enemySpwn;
 
@@ -14,13 +15,14 @@ public class WMEnemy : MonoBehaviour
     {
         enemySpwn = EnemySpawner.instance;
     }
-
+    
 
     private void OnTriggerEnter2D(Collider2D col)
     {
         if(col.gameObject.tag.Equals("Player"))
         {
-            TransitionIntoBattle();
+            fadePanel.FlipFadeToBattle(this);
+            BattleManager.battleInProgress = true;
         }
     }
 
@@ -31,6 +33,7 @@ public class WMEnemy : MonoBehaviour
             enemySpwn.AddEnemyToSpawn(enemies[i], i, enemyLevels[i]);
         }
         SceneManager.LoadScene("Queue Scene", LoadSceneMode.Additive);
+
         gameObject.SetActive(false);
     }
 }

@@ -5,6 +5,12 @@ using UnityEngine.UI;
 
 public class Player : MonoBehaviour
 {
+    //Instances
+    private BattleManager battleManager;
+    private UIBTL uiBTL;
+    private ObjectPooler objPooler;
+    private SkillsInventory skills;
+
     //Player stats
     public float atk;
     public float def;
@@ -22,18 +28,19 @@ public class Player : MonoBehaviour
     public string[] equippedSkills = new string [4];
     public int range; //Range of player standard attack
     public int initialPos; //Position of the player 0 being Frontline and -1 being Ranged
+    public bool dead;
 
     //Queue
     public Sprite qImage;
     private int QCounter; //Used to count turns since the player went in rage or decided to go in waiting state.
 
-    //Instances
-    private BattleManager battleManager;
-    private UIBTL uiBTL;
-
     //Components
     private Animator playerAnimator;
 
+    //Skills
+    private int chosenSkill;
+    private int skillTarget;
+    private float mpCost;
 
     //Rage
     public float currentRage;
@@ -46,6 +53,9 @@ public class Player : MonoBehaviour
     //UI
     public Image hpImage;
     public Image rageImage;
+
+    //Camera
+    public BattleCamera btlCam;
 
     //Actual stats --> Stats after they've been modified in battle
     private float actualATK;
@@ -80,6 +90,8 @@ public class Player : MonoBehaviour
         //Instances
         battleManager = BattleManager.instance;
         uiBTL = UIBTL.instance;
+        objPooler = ObjectPooler.instance;
+        skills = SkillsInventory.invInstance;
 
         //States
         currentState = playerState.Idle;
@@ -87,10 +99,13 @@ public class Player : MonoBehaviour
         //Components
         playerAnimator = gameObject.GetComponent<Animator>();
 
+        //Skills
+        chosenSkill = 0;
+
         //Rage
-        maxRage = 100.0f;
-        canRage = false;
+        maxRage = maxHP * 0.65f; //Max rage is 65% of max health
         rageModeIndicator.gameObject.SetActive(false);
+        canRage = false;
 
         //Guard
         guardIcon.gameObject.SetActive(false);
@@ -110,6 +125,7 @@ public class Player : MonoBehaviour
         actualCRIT = crit;
         actualSTR = str;
         healable = false;
+        dead = false;
 
         //UI
         hpImage.fillAmount = currentHP / maxHP;
@@ -132,19 +148,9 @@ public class Player : MonoBehaviour
 
     private void StartBattle()
     {
-        Debug.Log("Player start battle baby");
+
         //Get the information from the party stats file
-        currentHP = PartyStats.chara[playerIndex].hitpoints;
-        maxHP = PartyStats.chara[playerIndex].TotalMaxHealth;
-        currentMP = PartyStats.chara[playerIndex].magicpoints;
-        maxMP = PartyStats.chara[playerIndex].TotalMaxMana;
-        atk = PartyStats.chara[playerIndex].TotalAttack;
-        def = PartyStats.chara[playerIndex].TotalDefence;
-        agi = PartyStats.chara[playerIndex].TotalAgility;
-        crit = PartyStats.chara[playerIndex].TotalCritical;
-        str = PartyStats.chara[playerIndex].TotalStrength;
-        speed = PartyStats.chara[playerIndex].TotalSpeed;
-        currentRage = PartyStats.chara[playerIndex].rage;
+        UpdatePlayerStats();
         battleManager.players[playerIndex].playerIndex = playerIndex;
         battleManager.players[playerIndex].playerReference = this;
         battleManager.players[playerIndex].name = name;
@@ -156,12 +162,19 @@ public class Player : MonoBehaviour
     //Called from the UIBTL to turn on the animation
     public void PlayerTurn()
     {
-        playerAnimator.SetBool("Turn", true);
-
-        //If the it's my turn again, and I have been guarding, end the guard since guarding only lasts for 1 turn
-        if(currentState == playerState.Guard)
+        if (!dead)
         {
-            EndGuard();
+            playerAnimator.SetBool("Turn", true);
+
+            //If the it's my turn again, and I have been guarding, end the guard since guarding only lasts for 1 turn
+            if (currentState == playerState.Guard)
+            {
+                EndGuard();
+            }
+        }
+        else
+        {
+            uiBTL.EndTurn();
         }
     }
 
@@ -180,6 +193,10 @@ public class Player : MonoBehaviour
         CalculateHit();
         if (hit)
         {
+            //Attack Effect
+            objPooler.SpawnFromPool("PlayerNormalAttack", attackingThisEnemy.gameObject.transform.position, gameObject.transform.rotation);
+            //Shake the camera
+            btlCam.CameraShake();
             //Check for critical hits
             if (CalculateCrit() <= crit)
             {
@@ -190,7 +207,6 @@ public class Player : MonoBehaviour
                 attackingThisEnemy.TakeDamage(actualATK);
             }
         }
-        uiBTL.ResetVisibilityForAllEnemies();
         uiBTL.EndTurn();
 
         //If the player is in rage state, they can only attack so it makes sense to check if we were in rage mode when attacking
@@ -245,13 +261,24 @@ public class Player : MonoBehaviour
 
     public void TakeDamage(float enemyATK)
     {
+        btlCam.CameraShake();
         float damage = enemyATK - ((def / (20.0f + def)) * enemyATK);
         currentHP -= damage;
         battleManager.players[playerIndex].currentHP = currentHP; //Update the BTL manager with the new health
-        hpImage.fillAmount = currentHP / maxHP;
+
+        if (currentHP <= 0.0f)
+        {
+            hpImage.fillAmount = 0.0f;
+            dead = true;
+            playerAnimator.SetBool("Dead", true);
+        }
+        else
+        {
+            hpImage.fillAmount = currentHP / maxHP;
+        }
         if (currentRage < maxRage && currentState!=playerState.Rage) //If there's still capacity for rage while we're not actually in rage, increase the rage meter
         {
-            currentRage += damage * 1.2f; //Rage amount is always 20% more than the health lost
+            currentRage += damage * 1.05f; //Rage amount is always 5% more than the health lost
             rageImage.fillAmount = currentRage / maxRage;
             
             if(currentRage>=maxRage)
@@ -288,7 +315,7 @@ public class Player : MonoBehaviour
             uiBTL.RageOptionTextColor();
         }
 
-        currentRage -= healAmount * 1.2f; //Rage goes down by 20% more than the health gained
+        currentRage -= healAmount * 1.5f; //Rage goes down by 20% more than the health gained
 
         if(currentRage < 0.0f)
         {
@@ -317,6 +344,7 @@ public class Player : MonoBehaviour
     {
         Debug.Log("Rage has cooled down");
         currentRage = 0.0f;
+        PartyStats.chara[playerIndex].rage = currentRage;
         actualATK = atk;
         actualDEF = def;
         healable = true;
@@ -325,5 +353,113 @@ public class Player : MonoBehaviour
         rageModeIndicator.gameObject.SetActive(false);
         rageImage.fillAmount = 0.0f;  //Update the UI
         currentState = playerState.Idle;
+    }
+
+    //Called whenever a player is healed, or stats their stats changed
+    public void UpdatePlayerStats()
+    {
+        currentHP = PartyStats.chara[playerIndex].hitpoints;
+        maxHP = PartyStats.chara[playerIndex].TotalMaxHealth;
+        currentMP = PartyStats.chara[playerIndex].magicpoints;
+        maxMP = PartyStats.chara[playerIndex].TotalMaxMana;
+        atk = PartyStats.chara[playerIndex].TotalAttack;
+        def = PartyStats.chara[playerIndex].TotalDefence;
+        agi = PartyStats.chara[playerIndex].TotalAgility;
+        crit = PartyStats.chara[playerIndex].TotalCritical;
+        str = PartyStats.chara[playerIndex].TotalStrength;
+        speed = PartyStats.chara[playerIndex].TotalSpeed;
+        currentRage = PartyStats.chara[playerIndex].rage;
+
+        hpImage.fillAmount = currentHP / maxHP;
+        rageImage.fillAmount = currentRage / maxRage;
+
+        if(currentRage>=maxRage)
+        {
+            currentRage = maxRage;
+            canRage = true;
+        }
+        else
+        {
+            canRage = false;
+        }
+    }
+
+    public void ForcePlayerTurnAnimationOff()
+    {
+        playerAnimator.SetBool("Turn", false);
+    }
+
+    //---------------------------------------------------Skills---------------------------------------------------//
+    public int SkillSearch(int skillID)
+    {
+        Debug.Log("Skill ID");
+        chosenSkill = skillID;
+        mpCost = skills.SkillStats(chosenSkill)[5]; //Get the MP cost
+
+        //0: Target one enemy
+        //1: Target all enemies
+        //2: Target row of enemies
+        //4: Target one player
+        //5: Target all players
+
+
+            switch (skillID)
+            {
+                case (int)SKILLS.TEST_SKILL1:
+                    return skillTarget = 0;
+                case (int)SKILLS.TEST_SKILL2:
+                    return skillTarget = 1;
+                case (int)SKILLS.TEST_SKILL3:
+                    return skillTarget = 4;
+                case (int)SKILLS.TEST_SKILL4:
+                    return skillTarget = 4;
+                default:
+                    return skillTarget = 0;
+            }
+    }
+
+    public void UseSkillOnPlayer(Player playerReference)
+    {
+        if(skillTarget == 5)
+        {
+            //Affect all players
+        }
+        else
+        {
+            //Affect the playerReference
+        }
+    }
+
+    public void UseSkillOnEnemy(Enemy enemyReference)
+    {
+        Debug.Log("Skill Target " + skillTarget);
+        if(skillTarget  == 1)
+        {
+
+        }
+        else if(skillTarget  == 2)
+        {
+
+        }
+        else
+        {
+            Debug.Log("HIT");
+            playerAnimator.SetBool("ASkill", true);
+           // playerAnimator.SetBool("Turn", false);
+            attackingThisEnemy = enemyReference;
+        }
+    }
+
+    public void SkillDamageEnemy()
+    {
+        if (skillTarget == 0) // Damaging one enemy
+        {
+            Debug.Log("Damage enemy");
+            attackingThisEnemy.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0]); //Damage is the half the player's attack stat and the skill's attack stat
+            playerAnimator.SetBool("ASkill", false);
+            currentMP -= mpCost;
+            uiBTL.UpdatePlayerMPControlPanel();
+            uiBTL.EndTurn(); 
+        }
     }
 }

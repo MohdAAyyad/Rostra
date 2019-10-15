@@ -223,6 +223,9 @@ public class BattleManager : MonoBehaviour
 
         BuildQueue();
 
+        //Update the consumable inventory
+        TellInventoryToUpdateConsumables();
+
         if (!battleHasEnded)
         {
             NextOnQueue();
@@ -329,6 +332,7 @@ public class BattleManager : MonoBehaviour
                 battleQueue.Add(enemies[maxEnemyIndex]);
                 //Add the enemy's image to the UI
                 uiBtl.AddImageToQ(enemies[maxEnemyIndex].enemyReference.qImage);
+                Debug.Log(enemies[maxEnemyIndex].enemyReference.qImage);
                 //Remove the enemy's agility from the list
                 eSpeeds.RemoveAt(eSpeeds.Count - 1);
                 //Add the enemy's index to the array of removed enemy
@@ -351,6 +355,7 @@ public class BattleManager : MonoBehaviour
             battleQueue.Add(enemies[maxEnemyIndex]);
             //Add the enemy's image to the UI
             uiBtl.AddImageToQ(enemies[maxEnemyIndex].enemyReference.qImage);
+            Debug.Log(enemies[maxEnemyIndex].enemyReference.qImage);
             eSpeeds.RemoveAt(eSpeeds.Count - 1);
             removedEnemyIndexes[maxEnemyIndex] = maxEnemyIndex;
         }
@@ -447,5 +452,19 @@ public class BattleManager : MonoBehaviour
         players[playerIndex].exp = PartyStats.chara[playerIndex].currentExperience;
         players[playerIndex].expNeededForNextLevel = PartyStats.chara[playerIndex].neededExperience;
         players[playerIndex].playerReference.UpdatePlayerStats();
+    }
+
+    private void TellInventoryToUpdateConsumables()
+    {
+
+        var length = MainInventory.INVENTORY_SIZE;
+        for (int i = 0; i < length; i++)
+        {
+            if (MainInventory.invInstance.ItemType(MainInventory.invInstance.invItem[i, 0]) == (int)ITEM_TYPE.CONSUMABLE)
+            {
+                MainInventory.invInstance.consumableInv.Add(i);
+            }
+        }
+        //Debug.Log("Consumables Count is: " + MainInventory.invInstance.consumableInv.Count);
     }
 }

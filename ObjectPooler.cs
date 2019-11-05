@@ -25,10 +25,19 @@ public class ObjectPooler : MonoBehaviour
         {
             instance = this;
             DontDestroyOnLoad(gameObject);
+            GameManager.instance.listOfUndestroyables.Add(this.gameObject);
         }
         else
         {
             Destroy(gameObject);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (instance == this)
+        {
+            instance = null;
         }
     }
     #endregion

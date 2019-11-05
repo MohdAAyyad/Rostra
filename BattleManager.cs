@@ -62,11 +62,12 @@ public class BattleManager : MonoBehaviour
     public bool battleHasEnded;
     public static bool battleInProgress = false;
 
+    private float dummyTimer = 5.0f;
 
     //At the beginning of each battle, each player and enemy will use the singleton to update their stats
     #region singleton
 
-    private void Awake()
+    protected virtual void Awake()
     {
         if (instance == null)
         {
@@ -112,7 +113,7 @@ public class BattleManager : MonoBehaviour
 
     #endregion
 
-    private void Start()
+    protected virtual void Start()
     {
        // Debug.Log("BTL Start");
         uiBtl = UIBTL.instance;
@@ -134,7 +135,7 @@ public class BattleManager : MonoBehaviour
     }
 
 
-    private void Update()
+    protected virtual void Update()
     {
        // Debug.Log(numberOfPlayers);
         //Number of players is decreased by the player scripts
@@ -165,13 +166,15 @@ public class BattleManager : MonoBehaviour
     }
 
     //Called at the beginning of the battle to store references to current enemies. Needed to be able to update the queue
-    public void AddEnemy(int enemyIndex, int agi, int str, int crit, int speed, Enemy enemyRef, string name)
+    public virtual void AddEnemy(int enemyIndex, int agi, int str, int crit, int speed, int currentHp, int maxHp, Enemy enemyRef, string name)
     {
             enemies[enemyIndex].playerIndex = enemyIndex;
             enemies[enemyIndex].agi = agi;
             enemies[enemyIndex].speed = speed;
             enemies[enemyIndex].str = str;
             enemies[enemyIndex].crit = crit;
+            enemies[enemyIndex].currentHP = currentHp;
+            enemies[enemyIndex].maxHP = maxHp;
             enemies[enemyIndex].enemyReference = enemyRef;
             enemies[enemyIndex].name = name;
 
@@ -185,7 +188,7 @@ public class BattleManager : MonoBehaviour
         {
             allEnemiesAdded = true;
             //Temp code
-            expGain = 6 * totalLevels;
+            expGain = 20 * totalLevels;
             Debug.Log("EXP GAINNN " + expGain);
         }
 
@@ -193,22 +196,10 @@ public class BattleManager : MonoBehaviour
         uiBtl.enemies[enemyIndex] = enemyRef; //Update the UI system with the enemy
     }
 
-    public void StartBattle()
+    public virtual void StartBattle()
     {
+
         //Store and sort the agilities of the players and enemies in ascending order
-       
-        foreach (PlayerInformtion p in players)
-        {
-            if (p.playerReference != null)//Make sure all the entries have players (i.e. what if we have less than 4 players)
-            {
-                //Debug.Log(p.playerReference.name + " Has been added to sort");
-                pSpeeds.Add(p.speed);
-            }
-        }
-            
-
-        pSpeeds.Sort();
-
 
         foreach (PlayerInformtion e in enemies)
         {
@@ -220,19 +211,35 @@ public class BattleManager : MonoBehaviour
 
         eSpeeds.Sort();
 
+        foreach (PlayerInformtion p in players)
+        {
+            if (p.playerReference != null)//Make sure all the entries have players (i.e. what if we have less than 4 players)
+            {
+                pSpeeds.Add(p.speed);
+            }
+        }
+
+        pSpeeds.Sort();
+
 
         BuildQueue();
 
         //Update the consumable inventory
         TellInventoryToUpdateConsumables();
 
+        battleInProgress = true;
+
         if (!battleHasEnded)
         {
             NextOnQueue();
         }
+
+
+
+
     }
 
-    public void NextOnQueue()
+    public virtual void NextOnQueue()
     {
         //Check if the next on Q is a player or an enemy and call the correct function
         if (battleQueue[0].playerReference != null && battleQueue[0].enemyReference == null)
@@ -250,7 +257,7 @@ public class BattleManager : MonoBehaviour
         battleQueue.RemoveAt(0);
     }
 
-    public void BuildQueue()
+    public virtual void BuildQueue()
     {
         //Compare the player with the highest speed to the enemy with the highest speed
         if (pSpeeds.Count > 0)
@@ -374,23 +381,27 @@ public class BattleManager : MonoBehaviour
 
 
     //Called by each player at the end of each battle
-    public void EndOfBattle()
+    public virtual void EndOfBattle(bool victory)
     {
         battleHasEnded = true;
         battleInProgress = false;
-        for (int i =0; i<4;i++)
-        {
-            //Update the remaining HP of players in the btl manager and the partystats
-            players[i].currentHP = PartyStats.chara[i].hitpoints = players[i].playerReference.currentHP;
-            players[i].currentMP = PartyStats.chara[i].magicpoints = players[i].playerReference.currentMP;
-            //If the player ended the battle in rage mode, reset the rage to 0
-            if (players[i].playerReference.currentState == Player.playerState.Rage)
+        if (victory)
+        { //Only if it's a victory, update the party stats
+            for (int i = 0; i < 4; i++)
             {
-                PartyStats.chara[i].rage = 0.0f;
-                players[i].playerReference.canRage = false;
+                //Update the remaining HP of players in the btl manager and the partystats
+                players[i].currentHP = PartyStats.chara[i].hitpoints = players[i].playerReference.currentHP;
+                players[i].currentMP = PartyStats.chara[i].magicpoints = players[i].playerReference.currentMP;
+                //If the player ended the battle in rage mode, reset the rage to 0
+                if (players[i].playerReference.currentState == Player.playerState.Rage)
+                {
+                    PartyStats.chara[i].rage = 0.0f;
+                    players[i].playerReference.canRage = false;
+                }
+                
             }
-            enemySpawner.numberOfEnemies = 0; //Reset the enemy spawner to get ready for the next battle
         }
+        enemySpawner.numberOfEnemies = 0; //Reset the enemy spawner to get ready for the next battle
 
         //Clear out the enemies array
         for (int i =0;i<5;i++)
@@ -399,20 +410,8 @@ public class BattleManager : MonoBehaviour
         }
     }
 
-    //Called by the inventory manager to update the player's stats when the player changes gear and on awake
-    public void UpdateFromInv(int playerIndex,int hp, int mp, int atk, int def, int agi, int str, int crit)
-    {
-        players[playerIndex].currentHP = hp;
-        players[playerIndex].currentMP = mp;
-        players[playerIndex].atk = atk;
-        players[playerIndex].def = def;
-        players[playerIndex].agi = agi;
-        players[playerIndex].crit = crit;
-        players[playerIndex].str = str;
-    }
-
     //Called by the exp manager on awake and when the player's level changes
-    public void UpdateFromExp(int playerIndex, int currentExp, int maxExp)
+    public virtual void UpdateFromExp(int playerIndex, int currentExp, int maxExp)
     {
         players[playerIndex].exp = currentExp;
         players[playerIndex].expNeededForNextLevel = maxExp;
@@ -421,7 +420,7 @@ public class BattleManager : MonoBehaviour
     }
     
 
-    public void LevelUp(int playerIndex)
+    public virtual void LevelUp(int playerIndex)
     {
         //Called from the Victory Screen
         //The new EXP is what remains after reaching the new level
@@ -437,7 +436,7 @@ public class BattleManager : MonoBehaviour
         Debug.Log("You need this much to level up again! " + players[playerIndex].expNeededForNextLevel);
     }
 
-    public void UpdatePlayerStats(int playerIndex)
+    public virtual void UpdatePlayerStats(int playerIndex)
     {
         players[playerIndex].currentHP = PartyStats.chara[playerIndex].hitpoints;
         players[playerIndex].maxHP = PartyStats.chara[playerIndex].TotalMaxHealth;
@@ -451,10 +450,9 @@ public class BattleManager : MonoBehaviour
         players[playerIndex].speed = PartyStats.chara[playerIndex].TotalSpeed;
         players[playerIndex].exp = PartyStats.chara[playerIndex].currentExperience;
         players[playerIndex].expNeededForNextLevel = PartyStats.chara[playerIndex].neededExperience;
-        players[playerIndex].playerReference.UpdatePlayerStats();
     }
 
-    private void TellInventoryToUpdateConsumables()
+    protected virtual void TellInventoryToUpdateConsumables()
     {
 
         var length = MainInventory.INVENTORY_SIZE;
@@ -465,6 +463,6 @@ public class BattleManager : MonoBehaviour
                 MainInventory.invInstance.consumableInv.Add(i);
             }
         }
-        //Debug.Log("Consumables Count is: " + MainInventory.invInstance.consumableInv.Count);
+        Debug.Log("Consumables Count is: " + MainInventory.invInstance.consumableInv.Count);
     }
 }

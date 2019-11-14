@@ -8,6 +8,7 @@ public class AudioManager : MonoBehaviour
     //The AM still stores the effect sounds, but those will be played by each object individually
     public static AudioManager instance;
     private AudioSource musicAudioSource;
+    public AudioClip titleTheme1;
     public AudioClip worldMapMusic1;
     public AudioClip battleMusic1;
     public AudioClip bossMusic1;
@@ -35,7 +36,6 @@ public class AudioManager : MonoBehaviour
         {
             instance = this;
             DontDestroyOnLoad(this.gameObject);
-            GameManager.instance.listOfUndestroyables.Add(this.gameObject);
         }
         else
         {
@@ -55,7 +55,7 @@ public class AudioManager : MonoBehaviour
     {
         musicAudioSource = gameObject.GetComponent<AudioSource>();
         musicAudioSource.volume = 0.0f; //Start at volume zero
-        PlayThisClip("WorldMapMusic1");
+        GameManager.instance.listOfUndestroyables.Add(this.gameObject); //On start cause AM and GM start out in the same scene
     }
 
     private void Update()
@@ -114,6 +114,9 @@ public class AudioManager : MonoBehaviour
     {
         switch (clipName) //Get the new clip 
         {
+            case "TitleTheme":
+                playThisNext = titleTheme1;
+                break;
             case "WorldMapMusic1":
                 playThisNext = worldMapMusic1;
                 break;

@@ -20,6 +20,7 @@ public class Fade : MonoBehaviour
     private bool transitionOutOfACutscene;
     private bool canGoToSurvey;
 
+
     public VictoryScreen victoryPanel;
     public DefeatScreen defeatPanel;
     public GameObject endTestPanel;
@@ -98,9 +99,16 @@ public class Fade : MonoBehaviour
                 }
                 else if (transitionToWorldMap)
                 {
-                    Debug.Log("Transition is now falseee");
+                    //Debug.Log("Transition is now falseee");
                     transitionToWorldMap = false;
-                    SceneManager.UnloadSceneAsync(SceneManager.GetSceneByName("Queue Scene"));
+                    if (enemyHolder != null) //enemyHolder will only exist in sublocations, not in the world map
+                    {
+                        SceneManager.UnloadSceneAsync(SceneManager.GetSceneByName(enemyHolder.tutorial ? "Queue Scene 2" : "Queue Scene"));
+                    }
+                    else
+                    {
+                        SceneManager.UnloadSceneAsync(SceneManager.GetSceneByName("Queue Scene"));
+                    }
                     audioManager.PlayThisClip("WorldMapMusic1");
                 }
                 else if (transitionToEndTest)
@@ -117,7 +125,7 @@ public class Fade : MonoBehaviour
                         cutsceneTriggerRef.TriggerCutscene(); //Load the cutscene while fading out
                         audioManager.PlayThisClip("Cutscene1");
                         cutsceneTriggerRef = null;
-                    }
+					}
                 }
                 else if(transitionOutOfACutscene)
                 {
@@ -137,14 +145,17 @@ public class Fade : MonoBehaviour
 
     public void FlipFadeToBattle(WMEnemy enemyCollidingWithPlayer)
     {
-        enemyHolder = enemyCollidingWithPlayer;
+		
+		enemyHolder = enemyCollidingWithPlayer;
         fadeOut = true;
         transitionToBattle = true;
+        audioManager.PlayThisClip("BattleMusic1");
     }
     //Two version of flip fade, one for controlled situations where the WM is assigned from the editor and one for the world map
     public void FlipFadeToBattle()
     {
-        fadeOut = !fadeOut;
+		//Debug.Log("Flipped To Battle");
+		fadeOut = !fadeOut;
         transitionToBattle = true;
         audioManager.PlayThisClip("BattleMusic1");
     }
@@ -208,4 +219,5 @@ public class Fade : MonoBehaviour
         fadeOut = !fadeOut;
         transitionToEndTest = true;
     }
+
 }

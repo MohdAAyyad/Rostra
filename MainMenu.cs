@@ -6,6 +6,8 @@ using UnityEngine.UI;
 
 public class MainMenu : MonoBehaviour
 {
+	[Header("Change this to change scene")]
+	public string SceneToLoad;
     public GameObject hilighter;
     public GameObject[] hPos;
     public GameManager gameManager;
@@ -32,7 +34,19 @@ public class MainMenu : MonoBehaviour
     //Controls
     public GameObject controlsPanel;
 
+	//Input
+	private bool InDw_Down => Input.GetButtonDown("Down");
+	private bool InDW_Up => Input.GetButtonDown("Up");
+	private bool InDW_Left => Input.GetButtonDown("Left");
+	private bool InDW_Right => Input.GetButtonDown("Right");
+	private bool InDW_Confirm => Input.GetButtonDown("Confirm");
+	private bool InDW_Cancel => Input.GetButtonDown("Cancel");
 
+
+    private void Awake()
+    {
+        Instantiate(gameManager, gameManager.transform.position, gameManager.transform.rotation);
+    }
     void Start()
     {
         Cursor.visible = false;
@@ -52,7 +66,8 @@ public class MainMenu : MonoBehaviour
         howToPlayPanel.gameObject.SetActive(false);
         controlsPanel.gameObject.SetActive(false);
 
-        Instantiate(gameManager, gameManager.transform.position, gameManager.transform.rotation);
+        AudioListener.volume = 1.0f;
+        AudioManager.instance.PlayThisClip("TitleTheme");
     }
 
     void Update()
@@ -77,39 +92,40 @@ public class MainMenu : MonoBehaviour
         switch (menuIndex)
         {
             case 0:
-                if (Input.GetKeyDown(KeyCode.DownArrow))
+                if (InDw_Down)
                 {
                     menuIndex++;
                     hilighter.transform.localPosition = hPos[1].transform.localPosition;
 
                 }
-                else if (Input.GetKeyDown(KeyCode.UpArrow))
+                else if (InDW_Up)
                 {
                     menuIndex = 3;
                     hilighter.transform.localPosition = hPos[3].transform.localPosition;
 
                 }
-                else if (Input.GetButtonDown("Confirm")) //Player has chosen start game
+                else if (InDW_Confirm) //Player has chosen start game
                 {
+                    AudioManager.instance.PlayThisClip("WorldMapMusic1");
                     UIBTL.conversationAfterBattle = false;
                     BattleManager.battleInProgress = false;
                     startFading = true;
                 }
                 break;
             case 1:
-                if (Input.GetKeyDown(KeyCode.DownArrow))
+                if (InDw_Down)
                 {
                     menuIndex++;
                     hilighter.transform.localPosition = hPos[2].transform.localPosition;
 
                 }
-                else if (Input.GetKeyDown(KeyCode.UpArrow))
+                else if (InDW_Up)
                 {
                     menuIndex--;
                     hilighter.transform.localPosition = hPos[0].transform.localPosition;
 
                 }
-                else if (Input.GetButtonDown("Confirm")) //Chosen How To Play
+                else if (InDW_Confirm) //Chosen How To Play
                 {
                     menuIndex = 0;
                     howToPlayPanel.gameObject.SetActive(true);
@@ -126,38 +142,38 @@ public class MainMenu : MonoBehaviour
                 }
                 break;
             case 2:
-                if (Input.GetKeyDown(KeyCode.DownArrow))
+                if (InDw_Down)
                 {
                     menuIndex++;
                     hilighter.transform.localPosition = hPos[3].transform.localPosition;
 
                 }
-                else if (Input.GetKeyDown(KeyCode.UpArrow))
+                else if (InDW_Up)
                 {
                     menuIndex--;
                     hilighter.transform.localPosition = hPos[1].transform.localPosition;
 
                 }
-                else if (Input.GetButtonDown("Confirm")) //Player has chosen controls
+                else if (InDW_Confirm) //Player has chosen controls
                 {
                     controlsPanel.gameObject.SetActive(true);
                     currentState = MainMenuState.controls;
                 }
                 break;
             case 3:
-                if (Input.GetKeyDown(KeyCode.DownArrow))
+                if (InDw_Down)
                 {
                     menuIndex = 0;
                     hilighter.transform.localPosition = hPos[0].transform.localPosition;
 
                 }
-                else if (Input.GetKeyDown(KeyCode.UpArrow))
+                else if (InDW_Up)
                 {
                     menuIndex--;
                     hilighter.transform.localPosition = hPos[2].transform.localPosition;
 
                 }
-                else if (Input.GetButtonDown("Confirm")) //Player has chosen to quit
+                else if (InDW_Confirm) //Player has chosen to quit
                 {
                     Application.Quit();
                 }
@@ -169,7 +185,7 @@ public class MainMenu : MonoBehaviour
             fade.fillAmount += 0.02f;
             if (fade.fillAmount >= 1.0f)
             {
-                SceneManager.LoadScene("Playtest1");
+                SceneManager.LoadScene(SceneToLoad);
             }
         }
     }
@@ -177,7 +193,7 @@ public class MainMenu : MonoBehaviour
     //How To Play Screen
     private void HowToPlay()
     {
-        if (Input.GetKeyDown(KeyCode.RightArrow))
+        if (InDW_Right)
         {
             if (menuIndex < 6)
             {
@@ -198,7 +214,7 @@ public class MainMenu : MonoBehaviour
                 howToPlayImageIndicatorColor.a = 0.5f;
             }
         }
-        else if (Input.GetKeyDown(KeyCode.LeftArrow))
+        else if (InDW_Left)
         {
             if (menuIndex > 0)
             {
@@ -219,7 +235,7 @@ public class MainMenu : MonoBehaviour
                 howToPlayImageIndicatorColor.a = 0.5f;
             }
         }
-        else if(Input.GetButtonDown("Cancel"))
+        else if(InDW_Cancel)
         {
             menuIndex = 1;
             howToPlayPanel.gameObject.SetActive(false);
@@ -229,7 +245,7 @@ public class MainMenu : MonoBehaviour
 
     private void Controls()
     {
-        if (Input.GetButtonDown("Cancel"))
+        if (InDW_Cancel)
         {
             menuIndex = 2;
             controlsPanel.gameObject.SetActive(false);

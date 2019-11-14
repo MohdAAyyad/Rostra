@@ -43,6 +43,7 @@ public class Player : MonoBehaviour
         none,
         fear,
         tied,
+		frozen,
     }
     public playerAilments currentAilment = playerAilments.none; //You an only be affected by one ailment at a time
 
@@ -98,12 +99,15 @@ public class Player : MonoBehaviour
     private bool agilityBuffed = false;
     private bool strBuffed = false;
     private bool drainEye = false;
-    private float drainEyeModifier = 0.2f; //Used to calculate the heal percentage
+    private float drainEyeModifier = 0.4f; //Used to calculate the heal percentage
     private float defenseBuffSkillQCounter = 0; //How many turns until the defense buff is reversed. Need three counters as multiple stats could be buffed/debuffed at the same time
     private float attackBuffSkillQCounter = 0;
     private float agilityBuffSkillQCounter = 0;
     private float strBuffSkillQCounter = 0;
     private float drainEyeSkillQCounter = 0;
+
+    //Need to keep track of the actual attack before raging and buffing so that you can stack them
+    private float actualAttackBeforeRage;
 
     //Rage
     public float currentRage;
@@ -136,6 +140,29 @@ public class Player : MonoBehaviour
     private Quaternion arrowRotator;
     private Color debuffColor;
 
+    //Rally
+    public GameObject rallySymbolFargasOnly;
+    //BladesOfTheFallen
+    private float totalBoFAtkToBeAdded = 0; //Used to calculate the atk points of the dead enemies which will be added to BoF
+
+    //SpearDance
+    private float critBeforeDance = 0.0f;
+
+    //Lion's Pride
+    public static bool lionsPrideIsActive = false;
+    private int lionsPrideSkillQCounter = 0;
+    public GameObject lionsPrideSymbolOberonOnly;
+
+    //Fierce Strike
+    private float sustainedDamage = 0.0f; //Accumuluates damage to a maximum and returns the favor
+    private float maxSustainedDamage = 300.0f;
+    public Text sustainedDamageText;
+
+    //Lutenist
+    private string[] statToAffect;
+
+    //Bleeding Edge
+    private float atkBeforeBleedingEdge = 0.0f; //BE doubles the attack points momentarily
 
     //UI
     public Image hpImage;
@@ -145,8 +172,10 @@ public class Player : MonoBehaviour
     public Text healText;
     public Text mpText;
     public Text skillText;
+    public Text missText;
     private string skillTextValue = "";
     public Text waitTimeText;
+    public GameObject statusPotionEffect; //Activated when a status ailment potion is used
 
     //Camera
     public BattleCamera btlCam;
@@ -154,14 +183,14 @@ public class Player : MonoBehaviour
     //Actual stats --> Stats after they've been modified in battle
     private float actualATK;
     private float actualDEF;
-    private float actualAgi;
+    public float actualAgi;
     private float actualCRIT;
     private float actualSTR;
-    public bool healable; //False when dead or in rage mode
 
     //Targeted enemy info
     private Enemy attackingThisEnemy;
     private bool hit; //Hit or miss  
+    private Enemy ralliedAgainstThisEnemy = null; // Keep a reference of the enemy rallied against. Only one rallied enemy can exist at a time
 
     //Guarding
     private float actualDefBeforeGuard; //What if the player uses a def-increasing skill before making this character go to guard?
@@ -212,6 +241,17 @@ public class Player : MonoBehaviour
         agiBuffEffect.gameObject.SetActive(false);
         strBuffEffect.gameObject.SetActive(false);
         drainEyeBuffEffect.gameObject.SetActive(false);
+        statusPotionEffect.gameObject.SetActive(false);
+
+        if(rallySymbolFargasOnly)
+        {
+            rallySymbolFargasOnly.gameObject.SetActive(false);
+        }
+
+        if (lionsPrideSymbolOberonOnly) //Only Oberon will have the symbol
+        {
+            lionsPrideSymbolOberonOnly.gameObject.SetActive(false);
+        }
         //MP Heal
 
         //Targeted enemy info
@@ -228,7 +268,6 @@ public class Player : MonoBehaviour
         actualAgi = agi;
         actualCRIT = crit;
         actualSTR = str;
-        healable = false;
         dead = false;
 
         //UI
@@ -237,6 +276,7 @@ public class Player : MonoBehaviour
         rageImage.fillAmount = currentRage / maxRage;
         damageText.gameObject.SetActive(false);
         healText.gameObject.SetActive(false);
+        missText.gameObject.SetActive(false);
         skillText.gameObject.SetActive(false);
         mpText.gameObject.SetActive(false);
         waitTimeText.gameObject.SetActive(false);
@@ -251,6 +291,28 @@ public class Player : MonoBehaviour
         //Ailments
         fearSymbol.gameObject.SetActive(false);
         tiedSymbol.gameObject.SetActive(false);
+
+        //Fierce Strike
+        if(playerIndex == 1) //If Oberon, see if Fierce Strike is active, if yes, enable the sustained damage UI counter
+        {
+            for (int i = 0; i < PartySkills.skills[1].equippedSkills.Length; i++)
+            {
+                if(PartySkills.skills[1].equippedSkills[i] == (int)SKILLS.Ob_FierceStrike)
+                {
+                    sustainedDamageText.transform.parent.gameObject.SetActive(true);
+                    sustainedDamageText.gameObject.SetActive(true);
+                    sustainedDamageText.text = "0";
+                    break;
+                }
+            }
+
+            //Lutenist of Ocrest array of strings
+            statToAffect = new string[4];
+            statToAffect[0] = "Defense";
+            statToAffect[1] = "Attack";
+            statToAffect[2] = "Agility";
+            statToAffect[3] = "Strength";
+        }
     }
 
     private void Update()
@@ -284,6 +346,7 @@ public class Player : MonoBehaviour
     {
         if (!dead)
         {
+            uiBTL.backdropHighlighter.gameObject.SetActive(true);
             playerAnimator.SetBool("Turn", true);
 
             CheckForAilments();
@@ -347,6 +410,7 @@ public class Player : MonoBehaviour
         }
         else
         {
+            //Debug.Log("Somehow I'm dead and called End Turn");
             uiBTL.EndTurn();
         }
     }
@@ -369,12 +433,27 @@ public class Player : MonoBehaviour
         CalculateHit();
         if (hit)
         {
+            //If we're using Bleeding Edge, damage Frea by the defense of the enemy
+            if (chosenSkill == (int)SKILLS.Fr_BleedingEdge)
+            {
+                TakeDamage(2.0f * attackingThisEnemy.eDefence);
+            }
+
             //Attack Effect
-            objPooler.SpawnFromPool("PlayerNormalAttack", attackingThisEnemy.gameObject.transform.position, gameObject.transform.rotation);
+            if (chosenSkill != (int)SKILLS.Fr_BleedingEdge)
+            {
+                objPooler.SpawnFromPool("PlayerNormalAttack", attackingThisEnemy.gameObject.transform.position, gameObject.transform.rotation);
+            }
+            else
+            {
+                //Summon the BE effects 
+                objPooler.SpawnFromPool("BleedingEdgeEffect", gameObject.transform.position, gameObject.transform.rotation);
+                objPooler.SpawnFromPool("BleedingEdgeImpact", attackingThisEnemy.gameObject.transform.position, gameObject.transform.rotation);
+            }
             //Shake the camera
             btlCam.CameraShake();
             //Check for critical hits
-            if (CalculateCrit() <= crit)
+            if (CalculateCrit() <= actualCRIT)
             {
                 if (chosenSkill == (int)SKILLS.NO_SKILL) //In case the player's skill uses the same animation as the normal attack animation
                 {
@@ -416,7 +495,7 @@ public class Player : MonoBehaviour
         }
         else
         {
-            Debug.Log("Player attack has missed");
+            attackingThisEnemy.TakeDamage(-1.0f, 0);
             if (numberOfAttacks <= 0)
             {
                 uiBTL.EndTurn();
@@ -436,8 +515,17 @@ public class Player : MonoBehaviour
         if (numberOfAttacks <= 0) //Check that all attacks have been done
         {
             playerAnimator.SetBool("Attack", false);
-        }
 
+            if (chosenSkill != (int)SKILLS.NO_SKILL)
+            {
+                if(chosenSkill == (int)SKILLS.Fr_BleedingEdge)
+                {
+                    actualATK = atkBeforeBleedingEdge; //Reset the actual attack
+                }
+
+                chosenSkill = (int)SKILLS.NO_SKILL; //Reset the chosen skill. Precautianory.
+            }
+        }
     }
     #endregion
 
@@ -455,7 +543,7 @@ public class Player : MonoBehaviour
             hit = true;
         }
 
-        Debug.Log("Hit is " + hit);
+        //Debug.Log("Hit is " + hit);
     }
 
     private void CalculateHitForSkill()
@@ -470,7 +558,7 @@ public class Player : MonoBehaviour
             hit = true;
         }
 
-        Debug.Log("Hit is " + hit);
+        //Debug.Log("Hit is " + hit);
     }
 
     //Overloaded function called when targeting all enemies
@@ -486,11 +574,16 @@ public class Player : MonoBehaviour
             hit = true;
         }
 
-        Debug.Log("Hit is " + hit);
+        //Debug.Log("Hit is " + hit);
     }
 
     private float CalculateCrit()
     {
+        if(chosenSkill == (int)SKILLS.Ob_SpearDance)
+        {
+            critBeforeDance = actualCRIT;
+            actualCRIT *= 4.0f;
+        }
         return Random.Range(0.0f, 100.0f);
     }
 
@@ -524,126 +617,190 @@ public class Player : MonoBehaviour
     #region take damage
     public void TakeDamage(float enemyATK)
     {
-        btlCam.CameraShake();
-        float damage = enemyATK - ((def / (20.0f + def)) * enemyATK);
-        currentHP -= damage;
-        damageText.gameObject.SetActive(true);
-        damageText.text = Mathf.RoundToInt(damage).ToString();
-        battleManager.players[playerIndex].currentHP = currentHP; //Update the BTL manager with the new health
-        PartyStats.chara[playerIndex].hitpoints = currentHP; //Update the party stats
-
-        if (currentHP <= 0.0f)
+        if (enemyATK > 0.0f)
         {
-            currentHP = 0.0f;
-            battleManager.players[playerIndex].currentHP = currentHP; //Update the BTL manager with the new health
-            PartyStats.chara[playerIndex].hitpoints = currentHP; //Update the party stats
-            hpImage.fillAmount = 0.0f;
-            dead = true;
-            DisableAllBuffs(); //BUffs should not continue beyond death
-            playerAnimator.SetBool("Dead", true);
-            //If you die, you lose your RAGE
-            if (currentState == playerState.Waiting) //If the player is waiting on a skill, reset everything and die
+            if (lionsPrideIsActive && playerIndex != 1) //If Lion's Pride is active and the attacked player is not Oberon, then Oberon should take the hit
             {
-                Debug.Log("Huh?");
-                chosenSkill = (int)SKILLS.NO_SKILL;
-                skillWaitTime = 0;
-                skillWaitingIndex = 0;
-                waitTimeText.gameObject.SetActive(false);
-                playerAnimator.SetInteger("WaitingIndex", 0);
-
+                battleManager.players[1].playerReference.TakeDamage(enemyATK);
             }
-            ResetPlayerRage();
-            uiBTL.PlayerIsDead(playerIndex);
+            else
+            {
+                btlCam.CameraShake();
+                float damage = enemyATK - ((def / (20.0f + def)) * enemyATK);
+                currentHP -= damage;
+
+                if (sustainedDamage < maxSustainedDamage && playerIndex == 1) //Add to sustained damage for Fierce Strike
+                {
+                    sustainedDamage += 0.8f * damage;
+                    sustainedDamageText.text = Mathf.RoundToInt(sustainedDamage).ToString();
+                    //Debug.Log("Oberon Sustained damage is:" + sustainedDamage);
+                }
+
+                damageText.gameObject.SetActive(true);
+                damageText.text = Mathf.RoundToInt(damage).ToString();
+                battleManager.players[playerIndex].currentHP = currentHP; //Update the BTL manager with the new health
+                PartyStats.chara[playerIndex].hitpoints = currentHP; //Update the party stats
+
+                if (currentHP < 1.0f) //Avoid near zero
+                {
+                    if (playerIndex == 1)
+                    {
+                        if (lionsPrideIsActive)
+                        {
+                            lionsPrideIsActive = false; //If Oberon is dead, Lion's Pride should be deactivated
+                            lionsPrideSymbolOberonOnly.gameObject.SetActive(false);
+                        }
+                        if(sustainedDamageText.gameObject.activeSelf)
+                        {
+                            sustainedDamage = 0; //If Oberon dies, he loses his charge
+                            sustainedDamageText.text = "0";
+                        }
+                    }
+                    currentHP = 0.0f;
+                    battleManager.players[playerIndex].currentHP = currentHP; //Update the BTL manager with the new health
+                    PartyStats.chara[playerIndex].hitpoints = currentHP; //Update the party stats
+                    hpImage.fillAmount = 0.0f;
+                    dead = true;
+                    DisableAllBuffs(); //BUffs should not continue beyond death
+                    playerAnimator.SetBool("Dead", true);
+                    //If you die, you lose your RAGE
+                    if (currentState == playerState.Waiting) //If the player is waiting on a skill, reset everything and die
+                    {
+                        chosenSkill = (int)SKILLS.NO_SKILL;
+                        skillWaitTime = 0;
+                        skillWaitingIndex = 0;
+                        waitTimeText.gameObject.SetActive(false);
+                        playerAnimator.SetInteger("WaitingIndex", 0);
+
+                    }
+                    ResetPlayerRage();
+                    uiBTL.PlayerIsDead(playerIndex);
+                }
+                else
+                {
+                    hpImage.fillAmount = currentHP / maxHP;
+                }
+                if (currentRage < maxRage && currentState != playerState.Rage) //If there's still capacity for rage while we're not actually in rage, increase the rage meter
+                {
+                    currentRage += damage * 1.05f; //Rage amount is always 5% more than the health lost
+                    rageImage.fillAmount = currentRage / maxRage;
+
+                    if (currentRage >= maxRage)
+                    {
+                        currentRage = maxRage;
+                        canRage = true; //Can now go into rage mode
+                    }
+                    PartyStats.chara[playerIndex].rage = currentRage; //Update the party stats
+                }
+
+                if (currentState != playerState.Waiting)
+                {
+                    playerAnimator.SetBool("Hit", true);
+                }
+            }
         }
         else
         {
-            hpImage.fillAmount = currentHP / maxHP;
-        }
-        if (currentRage < maxRage && currentState != playerState.Rage) //If there's still capacity for rage while we're not actually in rage, increase the rage meter
-        {
-            currentRage += damage * 1.05f; //Rage amount is always 5% more than the health lost
-            rageImage.fillAmount = currentRage / maxRage;
-
-            if (currentRage >= maxRage)
-            {
-                currentRage = maxRage;
-                canRage = true; //Can now go into rage mode
-            }
-            PartyStats.chara[playerIndex].rage = currentRage; //Update the party stats
-        }
-
-        if (currentState != playerState.Waiting)
-        {
-            playerAnimator.SetBool("Hit", true);
+            missText.gameObject.SetActive(true);
         }
     }
 
     //Take Damage override to include debuffs
     public void TakeDamage(float enemyAtk,int debuffIndex, string debuffSubIndex, playerAilments ailment, Enemy enemyReference, float debuffValuePercent, int debuffTimer, bool affectNonGuardOnly)
     {
-        if (enemyAtk > 0)
+        if (lionsPrideIsActive && playerIndex != 1) //If Lion's Pride is active and the attacked player is not Oberon, then Oberon should take the hit
         {
-            TakeDamage(enemyAtk); //Call the original one since the player needs to lose health first should the attack passed on be higher than zero
+            battleManager.players[1].playerReference.TakeDamage(enemyAtk, debuffIndex, debuffSubIndex, ailment, enemyReference, debuffValuePercent, debuffTimer, affectNonGuardOnly);
         }
-
-        switch(debuffIndex) //Is it a regular debuff or an ailment?
+        else
         {
-            case 0: //Ailment
-                switch(ailment)
-                {
-                    case playerAilments.fear:
-                        //Get the fear timer and activate the object
-                        currentAilment = playerAilments.fear;
-                        fearTimer = debuffTimer;
-                        Debug.Log(nameOfCharacter + "IS SPOOKED");
-                        fearSymbol.gameObject.SetActive(true);
-                        break;
-                    case playerAilments.tied:
-                        currentAilment = playerAilments.tied;
-                        tiedToThisEnemy = enemyReference;
-                        tiedSymbol.gameObject.SetActive(true);
-                        break;
-                }
-                break;
-            case 1: //Regular
-                        if(affectNonGuardOnly) //If this boolean is true, make sure to only affect characters in a non-guard state
-                        {
-                            if (currentState != playerState.Guard)
-                            {
-                                BuffStats(debuffSubIndex, -debuffValuePercent, debuffTimer);
-                            }
-                        }
-                        else
-                        {
+            if (enemyAtk > 0)
+            {
+                TakeDamage(enemyAtk); //Call the original one since the player needs to lose health first should the attack passed on be higher than zero
+            }
 
+            switch (debuffIndex) //Is it a regular debuff or an ailment?
+            {
+                case 0: //Ailment
+					switch (ailment) 
+					{
+						case playerAilments.fear:
+							//Get the fear timer and activate the object
+							currentAilment = playerAilments.fear;
+							fearTimer = debuffTimer;
+							//Debug.Log(nameOfCharacter + "IS SPOOKED");
+							fearSymbol.gameObject.SetActive(true);
+							break;
+						case playerAilments.tied:
+							currentAilment = playerAilments.tied;
+							tiedToThisEnemy = enemyReference;
+							tiedSymbol.gameObject.SetActive(true);
+							break;
+						case playerAilments.none:
+							break;
+						case playerAilments.frozen:
+							break;
+					}
+					break;
+                case 1: //Regular
+                    if (affectNonGuardOnly) //If this boolean is true, make sure to only affect characters in a non-guard state
+                    {
+                        if (currentState != playerState.Guard)
+                        {
                             BuffStats(debuffSubIndex, -debuffValuePercent, debuffTimer);
                         }
-                break;
-        }
-    }
+                    }
+                    else
+                    {
+                        BuffStats(debuffSubIndex, -debuffValuePercent, debuffTimer);
+                    }
+                    break;
+			}
+		}
+	}
 
-    #endregion
+	#endregion
 
-    #region RAGE
-    //Called by the UIBTl when the player chooses to go into rage mode
-    public void Rage()
+	#region RAGE
+	//Called by the UIBTl when the player chooses to go into rage mode
+	public void Rage()
     {
-        actualATK = atk * 2.0f;
+        currentState = playerState.Rage;
+        actualAttackBeforeRage = actualATK; //In case the player's attack was buffed before going into RAGE
+        actualATK = actualATK * 2.0f;
+
+        if (defenseBuffed && actualDEF > def) //Check fo buffs
+        {
+            BuffStats("Defense", -0.3f, 0); //Disable the defense buff
+        }
+
+        if (agilityBuffed && actualAgi > agi) //Check fo buffs
+        {
+            BuffStats("Agility", -0.3f, 0); //Disable the agility buff
+        }
+
+        if(drainEye)
+        {
+            //Turn off drain eye
+            drainEyeSkillQCounter = 0;
+            drainEye = false;
+            uiBTL.UpdateActivityText("Drain Eye has shut");
+            drainEyeBuffEffect.gameObject.SetActive(false);
+        }
+
         actualDEF = def / 2.0f;
-        healable = false;
+
         QCounter = 0; //Reset the QCounter
         rageModeIndicator.gameObject.SetActive(true);
-        currentState = playerState.Rage;
     }
 
     public void ResetPlayerRage()
     {
-        Debug.Log("Rage has cooled down");
+        //Debug.Log("Rage has cooled down");
         currentRage = 0.0f;
         PartyStats.chara[playerIndex].rage = currentRage;
-        actualATK = atk;
+        actualATK = actualAttackBeforeRage;
         actualDEF = def;
-        healable = true;
         canRage = false;
         QCounter = 0;
         rageModeIndicator.gameObject.SetActive(false);
@@ -686,6 +843,7 @@ public class Player : MonoBehaviour
         playerAnimator.SetBool("Turn", false);
     }
 
+    #region Skills
     //---------------------------------------------------Skills---------------------------------------------------//
     public void UseSkillOnOnePlayer(int skillID, float manaCost, float waitTime, Player playerReference)
     {
@@ -724,8 +882,24 @@ public class Player : MonoBehaviour
         else if (skillID == (int)SKILLS.Ob_ShieldAlly) //Buff defense skill
         {
             skillTarget = 8; //Single player buff
-            skillAnimatorName = "BuffDef";
-            skillWaitingIndex = 1;
+            skillAnimatorName = "BuffDef2";
+            skillWaitingIndex = 0;
+        }
+        else if (skillID == (int)SKILLS.Ob_LionsPride) //Lion's Pride special skill
+        {
+            lionsPrideIsActive = true;
+            lionsPrideSymbolOberonOnly.gameObject.SetActive(true);
+            lionsPrideSkillQCounter = 3; //Lions pride counter is different than the defense buff/debuff counter as the defense can be buffed or debuff further on but lion's pride will always only last for three turns
+            skillTarget = 8; //Single player buff
+            BuffStats("Defense", skills.SkillStats(chosenSkill)[0], 3);
+            playerAnimator.SetBool("BuffDef", false);
+            chosenSkill = (int)SKILLS.NO_SKILL;
+            currentMP -= mpCost;
+            mpImage.fillAmount = currentMP / maxMP;
+            battleManager.players[playerIndex].currentMP = currentMP;
+            PartyStats.chara[playerIndex].magicpoints = currentMP;
+            uiBTL.UpdatePlayerMPControlPanel();
+            currentState = playerState.Idle;
         }
         else if (skillID == (int)SKILLS.Fr_IDontMiss) //I Don't Miss special skill
         {
@@ -738,7 +912,6 @@ public class Player : MonoBehaviour
             PartyStats.chara[playerIndex].magicpoints = currentMP;
             uiBTL.UpdatePlayerMPControlPanel();
             currentState = playerState.Idle;
-
 
         }
 
@@ -782,6 +955,21 @@ public class Player : MonoBehaviour
             skillAnimatorName = "BuffDef";
             skillWaitingIndex = 1;
         }
+        else if(skillID == (int)SKILLS.Ob_Lutenist)
+        {
+            skillTarget = 9;
+            skillNameForObjPooler = "LutenistEffect";
+            skillAnimatorName = "BuffDef";
+            skillTextValue = "Charge!";
+            skillWaitingIndex = 4; //LU is 3
+        }
+        else if(skillID == (int)SKILLS.Fa_WarCry)
+        {
+            skillTarget = 9; //All player buff
+            skillAnimatorName = "ASkill";
+            skillWaitingIndex = 3;
+        }
+
 
         if (waitTime <= 0)
         {
@@ -791,7 +979,7 @@ public class Player : MonoBehaviour
         }
         else
         {
-            Debug.Log("Now");
+            //Debug.Log("Now");
             waitTimeText.gameObject.SetActive(true);
             waitTimeText.text = skillWaitTime.ToString();
             playerAnimator.SetInteger("WaitingIndex", skillWaitingIndex);
@@ -803,7 +991,7 @@ public class Player : MonoBehaviour
 
     public void UseSkillOnOneEnemy(int skillID, float manaCost, float waitTime, Enemy enemyReference)
     {
-        Debug.Log("Skill ID is: " + skillID);
+        //Debug.Log("Skill ID is: " + skillID);
         skillWaitTime = waitTime;
         skillTarget = 0;
         chosenSkill = skillID;
@@ -813,8 +1001,18 @@ public class Player : MonoBehaviour
         switch(skillID)
         {
             case (int)SKILLS.Fr_DoubleShot: //Double shot is a normal attack done twice
-                Debug.Log("Inside HITTT ");
                 numberOfAttacks = 2;
+                playerAnimator.SetBool("Turn", false);
+                skillAnimatorName = "Attack";
+                currentMP -= mpCost;
+                mpImage.fillAmount = currentMP / maxMP;
+                battleManager.players[playerIndex].currentMP = currentMP;
+                PartyStats.chara[playerIndex].magicpoints = currentMP;
+                break;
+            case (int)SKILLS.Fr_BleedingEdge:
+                numberOfAttacks = 1;
+                atkBeforeBleedingEdge = actualATK;
+                actualATK *= 3.0f; // Bleeding edge doubles the attack momentarily
                 playerAnimator.SetBool("Turn", false);
                 skillAnimatorName = "Attack";
                 currentMP -= mpCost;
@@ -827,12 +1025,30 @@ public class Player : MonoBehaviour
                 skillAnimatorName = "ASkill";
                 skillWaitingIndex = 1; //Should there be waiting time, this index is used to know which waiting animation to go to
                 break;
+            case (int)SKILLS.Fa_SwordOfFury:
+                skillTarget = 0;
+                skillNameForObjPooler = "SoFSkill";
+                skillAnimatorName = "Fury";
+                skillWaitingIndex = 0; //Should there be waiting time, this index is used to know which waiting animation to go to
+                break;
+            case (int)SKILLS.Fa_Sunguard:
+                skillTarget = 0;
+                skillNameForObjPooler = "Sun";
+                skillAnimatorName = "ASkill";
+                skillWaitingIndex = 4; //Should there be waiting time, this index is used to know which waiting animation to go to
+                break;
+            case (int)SKILLS.Fa_Rally:
+                skillTextValue = "Rally to me!";
+                skillTarget = 0;
+                skillNameForObjPooler = "Rally";
+                skillAnimatorName = "Rally";
+                skillWaitingIndex = 0; //Should there be waiting time, this index is used to know which waiting animation to go to
+                break;
         }
 
         //Do we have to wait?
         if (waitTime <= 0)
         {
-            Debug.Log("Further Inside HITTT ");
             skillWaitingIndex = 0;
             playerAnimator.SetInteger("WaitingIndex", 0);
             playerAnimator.SetBool(skillAnimatorName, true);
@@ -880,6 +1096,20 @@ public class Player : MonoBehaviour
                 skillTextValue = "Burn!";
                 skillWaitingIndex = 4; //Armageddon is 4
                 break;
+            case (int)SKILLS.Fa_BladeOfTheFallen:
+                skillObjectForObjPooler = "";
+                skillNameForObjPooler = "BoFImpact";
+                skillAnimatorName = "ASkill";
+                skillTextValue = "Give Me Strength!";
+                skillWaitingIndex = 5; //BoF is 5
+                break;
+            case (int)SKILLS.Ob_FierceStrike:
+                skillObjectForObjPooler = "";
+                skillNameForObjPooler = "FierceStrike";
+                skillAnimatorName = "BuffDef";
+                skillTextValue = "This is yours!";
+                skillWaitingIndex = 3; //FS is 3
+                break;
         }
 
         if (waitTime <= 0)
@@ -910,10 +1140,23 @@ public class Player : MonoBehaviour
         //Check which skill to know which animation to run
         if (skillID == (int)SKILLS.Fa_SwiftStrike) 
         {
-            Debug.Log("HIT");
             skillNameForObjPooler = "FFSkill1";
             skillAnimatorName = "ASkill";
             skillWaitingIndex = 1;
+        }
+
+        else if (skillID == (int)SKILLS.Ob_SpearDance)
+        {
+            skillNameForObjPooler = "SpearDance";
+            skillAnimatorName = "BuffDef";
+            skillWaitingIndex = 2; //2 is Spear Dance
+        }
+
+        else if(skillID == (int)SKILLS.Ar_IceAge)
+        {
+            skillNameForObjPooler = "IceAge";
+            skillAnimatorName = "Heal";
+            skillWaitingIndex = 2; //Same animation as mana heal
         }
 
         if (waitTime <= 0)
@@ -936,6 +1179,7 @@ public class Player : MonoBehaviour
     //Called from the animator
     public void SkillEffect()
     {
+
         //Skill target is used when calling skills to know what we are targeting
         //0: Single enemy attack
         //1: Full row enemies attack
@@ -948,94 +1192,235 @@ public class Player : MonoBehaviour
         //8: Single player buff
         //9: All players buff
 
-        //Check if there's a skill text
-        if(skillTextValue != "")
+        if (!battleManager.battleHasEnded)
         {
-            skillText.gameObject.SetActive(true);
-            skillText.text = skillTextValue;
-            skillTextValue = "";
-        }
-        if (skillTarget == 0) // Damaging one enemy
-        {
-            Debug.Log("Damage enemy");
-            CalculateHitForSkill();
-            if (hit)
+
+            //Check if there's a skill text
+            if (skillTextValue != "")
             {
-                objPooler.SpawnFromPool(skillNameForObjPooler, attackingThisEnemy.gameObject.transform.position, gameObject.transform.rotation);
-                Debug.Log("Skill hit");
-                //Summon effect here
-                btlCam.CameraShake();
-                if (CalculateCrit() <= crit)
+                skillText.gameObject.SetActive(true);
+                skillText.text = skillTextValue;
+                skillTextValue = "";
+            }
+            if (skillTarget == 0) // Damaging one enemy
+            {
+                if (attackingThisEnemy.dead)
                 {
-                    Debug.Log("Skill Crit");
-                    attackingThisEnemy.TakeDamage(0.7f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
-                    if(drainEye) //Check if Drain Eye is active
+                    FindAnAliveEnemy(); //Make sure you don't target a dead enemy
+                }
+                CalculateHitForSkill();
+                if (hit)
+                {
+                    if (chosenSkill != (int)SKILLS.Fa_Rally) //Rally has the object summoned on Fargas
                     {
-                        Heal(0.01f * (drainEyeModifier * (0.7f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                        objPooler.SpawnFromPool(skillNameForObjPooler, attackingThisEnemy.gameObject.transform.position, gameObject.transform.rotation);
                     }
+                    //Debug.Log("Skill hit");
+                    //Summon effect here
+                    btlCam.CameraShake();
+                    if (CalculateCrit() <= actualCRIT) //Critical
+                    {
+                        if (chosenSkill == (int)SKILLS.Fa_Sunguard) //Sunguard
+                        {
+                            //Debug.Log("Skill Crit");
+                            attackingThisEnemy.TakeDamage(0.7f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks, 0, 0.0f, 3, "", EnemyStatusAilment.chained); //Damage is the half the player's attack stat and the skill's attack stat
+                            if (drainEye) //Check if Drain Eye is active
+                            {
+                                Heal(0.01f * (drainEyeModifier * (0.7f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                            }
+                        }
+                        else if (chosenSkill == (int)SKILLS.Fa_Rally) // Rally
+                        {
+                            rallySymbolFargasOnly.gameObject.SetActive(true);
+                            if (ralliedAgainstThisEnemy != null) //Only one enemy can be rallied against a time
+                            {
+                                ralliedAgainstThisEnemy.NoLongerRallied();
+                            }
+                            attackingThisEnemy.TakeDamage(0.0f, numberOfAttacks, 0, 0.0f, 3, "", EnemyStatusAilment.rallied); //Damage is the half the player's attack stat and the skill's attack stat
+                            ralliedAgainstThisEnemy = attackingThisEnemy;
+                        }
+                        else
+                        {
+                            //Not sunguard or Rally
+                            //Debug.Log("Skill Crit");
+                            attackingThisEnemy.TakeDamage(0.7f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
+                            if (drainEye) //Check if Drain Eye is active
+                            {
+                                Heal(0.01f * (drainEyeModifier * (0.7f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                            }
+                        }
+                    }
+                    else //Not Critical
+                    {
+                        if (chosenSkill == (int)SKILLS.Fa_Sunguard)
+                        {
+                            attackingThisEnemy.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks, 0, 0.0f, 3, "", EnemyStatusAilment.chained); //Damage is the half the player's attack stat and the skill's attack stat
+                            if (drainEye) //Check if Drain Eye is active
+                            {
+                                Heal(0.01f * (drainEyeModifier * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                            }
+                        }
+                        else if (chosenSkill == (int)SKILLS.Fa_Rally) // Rally
+                        {
+                            rallySymbolFargasOnly.gameObject.SetActive(true);
+                            if (ralliedAgainstThisEnemy != null) //Only one enemy can be rallied against a time
+                            {
+                                ralliedAgainstThisEnemy.NoLongerRallied();
+                            }
+                            attackingThisEnemy.TakeDamage(0.0f, numberOfAttacks, 0, 0.0f, 3, "", EnemyStatusAilment.rallied); //Damage is the half the player's attack stat and the skill's attack stat
+                            ralliedAgainstThisEnemy = attackingThisEnemy;
+                        }
+                        else
+                        {
+                            attackingThisEnemy.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
+                            if (drainEye) //Check if Drain Eye is active
+                            {
+                                Heal(0.01f * (drainEyeModifier * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                            }
+                        }
+                    }
+
                 }
                 else
                 {
-                    Debug.Log("No Skill Crit");
-                    attackingThisEnemy.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
-                    if (drainEye) //Check if Drain Eye is active
+                    attackingThisEnemy.TakeDamage(-1.0f,0);
+                    uiBTL.EndTurn();
+                }
+                playerAnimator.SetBool(skillAnimatorName, false);
+
+            }
+            else if (skillTarget == 1) //Full row attack
+            {
+                //First Make sure at least one enemy is alive in the row you've chosen
+                if (enemyRowIndicator == 0)
+                {
+                    if(uiBTL.enemiesDead[0] && uiBTL.enemiesDead[1] && uiBTL.enemiesDead[2]) 
                     {
-                        Heal(0.01f * (drainEyeModifier * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                        enemyRowIndicator = 1;
+                    }
+                }
+                else if(enemyRowIndicator == 1)
+                {
+                    if (uiBTL.enemiesDead[3] && uiBTL.enemiesDead[4])
+                    {
+                        enemyRowIndicator = 0;
                     }
                 }
 
-            }
-            else
-            {
-                Debug.Log("Skill miss");
-                uiBTL.EndTurn();
-            }
 
-
-            playerAnimator.SetBool(skillAnimatorName, false);
-
-        }
-        else if (skillTarget == 1) //Full row attack
-        {
-            uiBTL.UpdateNumberOfEndTurnsNeededToEndTurn(enemyRowIndicator); //Tell the UIBTL which row you're attacking
-            if (enemyRowIndicator == 0)
-            {
-                for (int i = 0; i < 3; i++) //Front row
+                uiBTL.UpdateNumberOfEndTurnsNeededToEndTurn(enemyRowIndicator); //Tell the UIBTL which row you're attacking
+                if (enemyRowIndicator == 0)
                 {
-                    if (battleManager.enemies[i].enemyReference != null)
+                    for (int i = 0; i < 3; i++) //Front row
                     {
-                        if (!battleManager.enemies[i].enemyReference.dead)
+                        if (battleManager.enemies[i].enemyReference != null)
                         {
-                            CalculateHitForSkill(battleManager.enemies[i].enemyReference);
-                            if (hit)
+                            if (!battleManager.enemies[i].enemyReference.dead)
                             {
-                                objPooler.SpawnFromPool(skillNameForObjPooler, battleManager.enemies[i].enemyReference.gameObject.transform.position, gameObject.transform.rotation);
-                                Debug.Log("Skill hit");
-                                //Summon effect here
-                                btlCam.CameraShake();
-                                if (CalculateCrit() <= crit)
+                                CalculateHitForSkill(battleManager.enemies[i].enemyReference);
+                                if (hit)
                                 {
-                                    Debug.Log("Skill Crit");
-                                    battleManager.enemies[i].enemyReference.TakeDamage(0.7f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
-                                    if (drainEye) //Check if Drain Eye is active
+                                    objPooler.SpawnFromPool(skillNameForObjPooler, battleManager.enemies[i].enemyReference.gameObject.transform.position, gameObject.transform.rotation);
+                                    //Debug.Log("Skill hit");
+                                    //Summon effect here
+                                    btlCam.CameraShake();
+                                    if (CalculateCrit() <= actualCRIT)
                                     {
-                                        Heal(0.01f * (drainEyeModifier * (0.7f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                                        //Debug.Log("Skill Crit");
+
+                                        if (chosenSkill == (int)SKILLS.Ar_IceAge)
+                                        {
+                                            battleManager.enemies[i].enemyReference.TakeDamage(0.7f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks,1,0.3f,3,"Agility",EnemyStatusAilment.none); //Damage is the half the player's attack stat and the skill's attack stat
+                                        }
+                                        else
+                                        {
+                                            battleManager.enemies[i].enemyReference.TakeDamage(0.7f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
+                                        }
+                                        if (drainEye) //Check if Drain Eye is active
+                                        {
+                                            Heal(0.01f * (drainEyeModifier * (0.7f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                                        }
+                                    }
+                                    else
+                                    {
+                                        //Debug.Log("No Skill Crit");
+                                        if (chosenSkill == (int)SKILLS.Ar_IceAge)
+                                        {
+                                            battleManager.enemies[i].enemyReference.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks, 1, 0.3f, 3, "Agility", EnemyStatusAilment.none); //Damage is the half the player's attack stat and the skill's attack stat
+                                        }
+                                        else
+                                        {
+                                            battleManager.enemies[i].enemyReference.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
+                                        }
+                                        if (drainEye) //Check if Drain Eye is active
+                                        {
+                                            Heal(0.01f * (drainEyeModifier * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                                        }
                                     }
                                 }
                                 else
                                 {
-                                    Debug.Log("No Skill Crit");
-                                    battleManager.enemies[i].enemyReference.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
-                                    if (drainEye) //Check if Drain Eye is active
-                                    {
-                                        Heal(0.01f * (drainEyeModifier * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0])));
-                                    }
+                                    attackingThisEnemy.TakeDamage(-1.0f, 0);
+                                    uiBTL.EndTurn();
                                 }
                             }
-                            else
+                        }
+                    }
+                }
+                else if (enemyRowIndicator == 1) //Ranged row
+                {
+                    for (int i = 3; i < 5; i++)
+                    {
+                        if (battleManager.enemies[i].enemyReference != null)
+                        {
+                            if (!battleManager.enemies[i].enemyReference.dead)
                             {
-                                Debug.Log("Skill miss");
-                                uiBTL.EndTurn();
+                                CalculateHitForSkill(battleManager.enemies[i].enemyReference);
+                                if (hit)
+                                {
+                                    objPooler.SpawnFromPool(skillNameForObjPooler, battleManager.enemies[i].enemyReference.gameObject.transform.position, gameObject.transform.rotation);
+                                    //Debug.Log("Skill hit");
+                                    //Summon effect here
+                                    btlCam.CameraShake();
+                                    if (CalculateCrit() <= actualCRIT)
+                                    {
+                                        if (chosenSkill == (int)SKILLS.Ar_IceAge)
+                                        {
+                                            battleManager.enemies[i].enemyReference.TakeDamage(0.7f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks, 1, 0.3f, 3, "Agility", EnemyStatusAilment.none); //Damage is the half the player's attack stat and the skill's attack stat
+                                        }
+                                        else
+                                        {
+                                            battleManager.enemies[i].enemyReference.TakeDamage(0.7f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
+                                        }
+
+                                        if (drainEye) //Check if Drain Eye is active
+                                        {
+                                            Heal(0.01f * (drainEyeModifier * (0.7f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                                        }
+                                    }
+                                    else
+                                    {
+                                        //Debug.Log("No Skill Crit");
+                                        if (chosenSkill == (int)SKILLS.Ar_IceAge)
+                                        {
+                                            battleManager.enemies[i].enemyReference.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks, 1, 0.3f, 3, "Agility", EnemyStatusAilment.none); //Damage is the half the player's attack stat and the skill's attack stat
+                                        }
+                                        else
+                                        {
+                                            battleManager.enemies[i].enemyReference.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
+                                        }
+                                        if (drainEye) //Check if Drain Eye is active
+                                        {
+                                            Heal(0.01f * (drainEyeModifier * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    attackingThisEnemy.TakeDamage(-1.0f, 0);
+                                    uiBTL.EndTurn();
+
+                                }
                             }
                         }
                     }
@@ -1043,9 +1428,23 @@ public class Player : MonoBehaviour
                 playerAnimator.SetBool(skillAnimatorName, false);
                 playerAnimator.SetInteger("WaitingIndex", 0);
             }
-            else if (enemyRowIndicator == 1) //Ranged row
+            else if (skillTarget == 2) //All enemies attack
             {
-                for (int i = 3; i < 5; i++)
+                uiBTL.UpdateNumberOfEndTurnsNeededToEndTurn(2);
+
+                if (chosenSkill == (int)SKILLS.Fa_BladeOfTheFallen) //Check for BoF
+                {
+                    for (int i = 0; i < uiBTL.enemiesDead.Length; i++)
+                    {
+                        if (uiBTL.enemiesDead[i] == true && uiBTL.enemies[i] != null)
+                        {
+                            totalBoFAtkToBeAdded += uiBTL.enemies[i].eAttack; //Add dead enemy attack points to attack passed on
+                        }
+                    }
+                    //Debug.Log("BoF attack to be added is: " + totalBoFAtkToBeAdded);
+                }
+
+                for (int i = 0; i < battleManager.enemies.Length; i++)
                 {
                     if (battleManager.enemies[i].enemyReference != null)
                     {
@@ -1054,176 +1453,219 @@ public class Player : MonoBehaviour
                             CalculateHitForSkill(battleManager.enemies[i].enemyReference);
                             if (hit)
                             {
+                                if (skillObjectForObjPooler != "")
+                                {
+                                    objPooler.SpawnFromPool(skillObjectForObjPooler, battleManager.enemies[i].enemyReference.gameObject.transform.position, gameObject.transform.rotation);
+                                }
                                 objPooler.SpawnFromPool(skillNameForObjPooler, battleManager.enemies[i].enemyReference.gameObject.transform.position, gameObject.transform.rotation);
-                                Debug.Log("Skill hit");
+                                //Debug.Log("Skill hit");
                                 //Summon effect here
                                 btlCam.CameraShake();
-                                if (CalculateCrit() <= crit)
+                                if (CalculateCrit() <= actualCRIT)
                                 {
-                                    Debug.Log("Skill Crit");
-                                    battleManager.enemies[i].enemyReference.TakeDamage(0.7f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
-                                    if (drainEye) //Check if Drain Eye is active
+                                    //Debug.Log("Skill Crit");
+                                    if (chosenSkill == (int)SKILLS.Ar_Armageddon) //Armageddon burns
                                     {
-                                        Heal(0.01f * (drainEyeModifier * (0.7f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                                        battleManager.enemies[i].enemyReference.TakeDamage(0.7f * actualATK + skills.SkillStats(chosenSkill)[0] + totalBoFAtkToBeAdded, numberOfAttacks, 0, 0, 3, "", EnemyStatusAilment.burn); //Damage is half the player's attack stat and the skill's attack stat
+                                    }
+                                    else if (chosenSkill == (int)SKILLS.Ob_FierceStrike) //Fierce Strike is a revenge attack
+                                    {
+                                        battleManager.enemies[i].enemyReference.TakeDamage(0.7f * sustainedDamage, numberOfAttacks); //Fierce strike returns all damage sustained
+
+                                        if (drainEye) //Check if Drain Eye is active
+                                        {
+                                            Heal(0.01f * (drainEyeModifier * (0.7f * sustainedDamage)));
+                                        }
+                                    }
+                                    else
+                                    {
+                                        battleManager.enemies[i].enemyReference.TakeDamage(0.7f * actualATK + skills.SkillStats(chosenSkill)[0] + totalBoFAtkToBeAdded, numberOfAttacks); //Damage is half the player's attack stat and the skill's attack stat
+                                    }
+                                    if (drainEye && chosenSkill != (int)SKILLS.Ob_FierceStrike) //Check if Drain Eye is active
+                                    {
+                                        Heal(0.01f * (drainEyeModifier * (0.7f * actualATK + skills.SkillStats(chosenSkill)[0] + totalBoFAtkToBeAdded)));
                                     }
                                 }
                                 else
                                 {
-                                    Debug.Log("No Skill Crit");
-                                    battleManager.enemies[i].enemyReference.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
+                                    //Debug.Log("No Skill Crit");
+                                    if (chosenSkill == (int)SKILLS.Ar_Armageddon)
+                                    {
+                                        battleManager.enemies[i].enemyReference.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0] + totalBoFAtkToBeAdded, numberOfAttacks, 0, 0, 3, "", EnemyStatusAilment.burn); //Damage is half the player's attack stat and the skill's attack stat
+                                    }
+                                    else if (chosenSkill == (int)SKILLS.Ob_FierceStrike) //Fierce Strike is a revenge attack
+                                    {
+                                        battleManager.enemies[i].enemyReference.TakeDamage(0.5f * sustainedDamage, numberOfAttacks); //Fierce strike returns all damage sustained
+
+                                        if (drainEye) //Check if Drain Eye is active
+                                        {
+                                            Heal(0.01f * (drainEyeModifier * (0.5f * sustainedDamage)));
+                                        }
+                                    }
+                                    else
+                                    {
+                                        battleManager.enemies[i].enemyReference.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0] + totalBoFAtkToBeAdded, numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
+                                    }
                                     if (drainEye) //Check if Drain Eye is active
                                     {
-                                        Heal(0.01f * (drainEyeModifier * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0])));
+                                        Heal(0.01f * (drainEyeModifier * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0] + totalBoFAtkToBeAdded)));
                                     }
                                 }
                             }
                             else
                             {
-                                Debug.Log("Skill miss");
+                                attackingThisEnemy.TakeDamage(-1.0f, 0);
                                 uiBTL.EndTurn();
+                            }
+                        }
+                    }
+                }
+                if (chosenSkill == (int)SKILLS.Ob_FierceStrike)
+                {
+                    sustainedDamage = 0; //Reset sustained damage
+                    sustainedDamageText.text = "0";
+                }
+                playerAnimator.SetBool(skillAnimatorName, false);
+                playerAnimator.SetInteger("WaitingIndex", 0);
+            }
+            else if (skillTarget == 6) //Heal one player
+            {
+                if (chosenSkill == (int)SKILLS.Ar_Heal)
+                {
+                    healThisPlayer.Heal(0.01f * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0])); //Passing in a percentage
+                    playerAnimator.SetBool("Heal", false);
+                }
+                else if (chosenSkill == (int)SKILLS.Ar_ManaCharge)
+                {
+                    healThisPlayer.ManaCharge(0.01f * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0]));
+                    playerAnimator.SetBool("Heal", false);
+                }
+                else if (chosenSkill == (int)SKILLS.Ar_LullabyOfHope)
+                {
+                    healThisPlayer.RevivePlayer(0.5f); //Revive a player with half their HP
+                    playerAnimator.SetBool("Heal", false);
+                }
+            }
+            else if (skillTarget == 7) //Heal all players
+            {
+                if (chosenSkill == (int)SKILLS.Ar_HealingAura)
+                {
+                    for (int i = 0; i < battleManager.players.Length; i++)
+                    {
+                        if (battleManager.players[i].playerReference != null)
+                        {
+                            if (!battleManager.players[i].playerReference.dead && battleManager.players[i].playerReference.currentState != playerState.Rage)
+                            {
+                                battleManager.players[i].playerReference.Heal(0.01f * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0]));
+                            }
+                        }
+                    }
+                }
+                playerAnimator.SetBool(skillAnimatorName, false);
+                playerAnimator.SetInteger("WaitingIndex", 0);
+            }
+            else if (skillTarget == 8) //Buff single player
+            {
+                if (chosenSkill == (int)SKILLS.Ob_ShieldAlly)//Defense Buff
+                {
+                    healThisPlayer.BuffStats("Defense", skills.SkillStats(chosenSkill)[0], 3);
+                    playerAnimator.SetBool("BuffDef2", false);
+                }
+                else if (chosenSkill == (int)SKILLS.Ar_DrainEye)
+                {
+                    healThisPlayer.BuffStats("DrainEye", skills.SkillStats(chosenSkill)[0], 3);
+                    playerAnimator.SetBool("DrainEye", false);
+                }
 
-                            }
-                        }
-                    }
-                }
             }
-            playerAnimator.SetBool(skillAnimatorName, false);
-            playerAnimator.SetInteger("WaitingIndex", 0);
-        }
-        else if (skillTarget == 2) //All enemies attack
-        {
-            uiBTL.UpdateNumberOfEndTurnsNeededToEndTurn(2);
-            for (int i = 0; i < battleManager.enemies.Length; i++)
+            else if (skillTarget == 9) //Buff all players
             {
-                if (battleManager.enemies[i].enemyReference != null)
+                if (chosenSkill == (int)SKILLS.Ob_ShieldAllAllies) //Defense buff // Placeholder
                 {
-                    if (!battleManager.enemies[i].enemyReference.dead)
+                    for (int i = 0; i < battleManager.players.Length; i++)
                     {
-                        CalculateHitForSkill(battleManager.enemies[i].enemyReference);
-                        if (hit)
+                        if (battleManager.players[i].playerReference != null)
                         {
-                            if (skillObjectForObjPooler != "")
+                            //Make sure the character being buffed is alive and not in RAGE mode
+                            if (!battleManager.players[i].playerReference.dead && battleManager.players[i].playerReference.currentState != playerState.Rage)
                             {
-                                objPooler.SpawnFromPool(skillObjectForObjPooler, battleManager.enemies[i].enemyReference.gameObject.transform.position, gameObject.transform.rotation);
+                                battleManager.players[i].playerReference.BuffStats("Defense", skills.SkillStats(chosenSkill)[0], 3);
                             }
-                            objPooler.SpawnFromPool(skillNameForObjPooler, battleManager.enemies[i].enemyReference.gameObject.transform.position, gameObject.transform.rotation);
-                            Debug.Log("Skill hit");
-                            //Summon effect here
-                            btlCam.CameraShake();
-                            if (CalculateCrit() <= crit)
-                            {
-                                Debug.Log("Skill Crit");
-                                battleManager.enemies[i].enemyReference.TakeDamage(0.7f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is half the player's attack stat and the skill's attack stat
-                                if (drainEye) //Check if Drain Eye is active
-                                {
-                                    Heal(0.01f * (drainEyeModifier * (0.7f * actualATK + skills.SkillStats(chosenSkill)[0])));
-                                }
-                            }
-                            else
-                            {
-                                Debug.Log("No Skill Crit");
-                                battleManager.enemies[i].enemyReference.TakeDamage(0.5f * actualATK + skills.SkillStats(chosenSkill)[0], numberOfAttacks); //Damage is the half the player's attack stat and the skill's attack stat
-                                if (drainEye) //Check if Drain Eye is active
-                                {
-                                    Heal(0.01f * (drainEyeModifier * (0.7f * actualATK + skills.SkillStats(chosenSkill)[0])));
-                                }
-                            }
-                        }
-                        else
-                        {
-                            Debug.Log("Skill miss");
-                            uiBTL.EndTurn();
                         }
                     }
                 }
-            }
-            playerAnimator.SetBool(skillAnimatorName, false);
-            playerAnimator.SetInteger("WaitingIndex", 0);
-        }
-        else if (skillTarget == 6) //Heal one player
-        {
-            if (chosenSkill == (int)SKILLS.Ar_Heal)
-            {
-                healThisPlayer.Heal(0.01f * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0])); //Passing in a percentage
-                playerAnimator.SetBool("Heal", false);
-            }
-            else if(chosenSkill == (int)SKILLS.Ar_ManaCharge)
-            {
-                healThisPlayer.ManaCharge(0.01f * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0]));
-                playerAnimator.SetBool("Heal", false);
-            }
-            else if(chosenSkill == (int)SKILLS.Ar_LullabyOfHope)
-            {
-                healThisPlayer.RevivePlayer(0.5f); //Revive a player with half their HP
-                playerAnimator.SetBool("Heal", false);
-            }
-        }
-        else if (skillTarget == 7) //Heal all players
-        {
-            if (chosenSkill == (int)SKILLS.Ar_HealingAura)
-            {
-                for (int i = 0; i < battleManager.players.Length; i++)
+                else if (chosenSkill == (int)SKILLS.Fa_WarCry) //Warcry
                 {
-                    if (battleManager.players[i].playerReference != null)
+                    for (int i = 0; i < battleManager.players.Length; i++)
                     {
-                        if (!battleManager.players[i].playerReference.dead && battleManager.players[i].playerReference.currentState != playerState.Rage)
+                        if (battleManager.players[i].playerReference != null)
                         {
-                            battleManager.players[i].playerReference.Heal(0.01f * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0]));
+                            //Make sure the character being buffed is alive and not in RAGE mode
+                            if (!battleManager.players[i].playerReference.dead && battleManager.players[i].playerReference.currentState != playerState.Rage)
+                            {
+                                battleManager.players[i].playerReference.BuffStats("Attack", skills.SkillStats(chosenSkill)[0], 3);
+                            }
                         }
                     }
                 }
-                playerAnimator.SetBool("Heal", false);
-            }
-        }
-        else if (skillTarget == 8) //Buff single player
-        {
-            if (chosenSkill == (int)SKILLS.Ob_ShieldAlly)//Defense Buff
-            {
-                healThisPlayer.BuffStats("Defense", skills.SkillStats(chosenSkill)[0], 3);
-                playerAnimator.SetBool("BuffDef", false);
-            }
-            else if(chosenSkill == (int)SKILLS.Ar_DrainEye)
-            {
-                healThisPlayer.BuffStats("DrainEye", skills.SkillStats(chosenSkill)[0], 3);
-                playerAnimator.SetBool("DrainEye", false);
+                if (chosenSkill == (int)SKILLS.Ob_Lutenist) //Lutenist 
+                {
+                    uiBTL.UpdateNumberOfEndTurnsNeededToEndTurn(2); //There's a target all enemies element to it too
+                    objPooler.SpawnFromPool(skillNameForObjPooler, gameObject.transform.position, gameObject.transform.rotation);
+
+                    for (int i = 0; i < battleManager.players.Length; i++) //Buff random stat for each player
+                    {
+                        if (battleManager.players[i].playerReference != null)
+                        {
+                            //Make sure the character being buffed is alive and not in RAGE mode
+                            if (!battleManager.players[i].playerReference.dead && battleManager.players[i].playerReference.currentState != playerState.Rage)
+                            {
+                                battleManager.players[i].playerReference.BuffStats(statToAffect[Random.Range(0,statToAffect.Length)], skills.SkillStats(chosenSkill)[0], 3);
+                            }
+                        }
+                    }
+
+                    for(int i =0; i < battleManager.enemies.Length; i++) //Debuff a random stat for each enemy
+                    {
+                        if(battleManager.enemies[i].enemyReference!=null)
+                        {
+                            if(!battleManager.enemies[i].enemyReference.dead)
+                            {
+                                //Passing in a positive value cause the enemy's function negates the value
+                                battleManager.enemies[i].enemyReference.TakeDamage(0.0f, 0, 1, skills.SkillStats(chosenSkill)[0], 3, statToAffect[Random.Range(0, statToAffect.Length)], EnemyStatusAilment.none);// Debuff a random stat for the enemies
+                            }
+                        }
+                    }
+                }
+                playerAnimator.SetBool(skillAnimatorName, false);
+                playerAnimator.SetInteger("WaitingIndex", 0);
             }
 
-        }
-        else if (skillTarget == 9) //Buff all players
-        {
-            if (chosenSkill == (int)SKILLS.Ob_ShieldAllAllies) //Defense buff // Placeholder
+            // ----- End of Skill Effect -----  //
+
+            if (chosenSkill == (int)SKILLS.Ob_SpearDance)
             {
-                for (int i = 0; i < battleManager.players.Length; i++)
-                {
-                    if (battleManager.players[i].playerReference != null)
-                    {
-                        //Make sure the character being buffed is alive and not in RAGE mode
-                        if (!battleManager.players[i].playerReference.dead && battleManager.players[i].playerReference.currentState != playerState.Rage)
-                        {
-                            battleManager.players[i].playerReference.BuffStats("Defense", skills.SkillStats(chosenSkill)[0], 3);
-                        }
-                    }
-                }
-                playerAnimator.SetBool("BuffDef", false);
+                actualCRIT = critBeforeDance; //Return the crit to what it was before using the skill
             }
+            //Claculate the new MP and reset the player's state
+            totalBoFAtkToBeAdded = 0;
+            chosenSkill = (int)SKILLS.NO_SKILL;
+            currentMP -= mpCost;
+            mpImage.fillAmount = currentMP / maxMP;
+            battleManager.players[playerIndex].currentMP = currentMP;
+            PartyStats.chara[playerIndex].magicpoints = currentMP;
+            uiBTL.UpdatePlayerMPControlPanel();
+            currentState = playerState.Idle;
         }
-        //Claculate the new MP and reset the player's state
-        chosenSkill = (int)SKILLS.NO_SKILL;
-        currentMP -= mpCost;
-        mpImage.fillAmount = currentMP / maxMP;
-        battleManager.players[playerIndex].currentMP = currentMP;
-        PartyStats.chara[playerIndex].magicpoints = currentMP;
-        uiBTL.UpdatePlayerMPControlPanel();
-        currentState = playerState.Idle;
     }
 
     //Heal function. Different heal skills will heal the player by different percentages
     public void Heal(float percentage)
     {
         EnableEffect("Heal", 0);
-        Debug.Log("Percentageeeee " + percentage);
+        //Debug.Log("Percentageeeee " + percentage);
         float healAmount = percentage * maxHP;
-        Debug.Log("Heal amountttt +++ " + healAmount);
+        //Debug.Log("Heal amountttt +++ " + healAmount);
         currentHP += healAmount;
         healText.gameObject.SetActive(true);
         healText.text = Mathf.RoundToInt(healAmount).ToString();
@@ -1259,6 +1701,7 @@ public class Player : MonoBehaviour
         PartyStats.chara[playerIndex].rage = currentRage; //Update the party stats
         PartyStats.chara[playerIndex].hitpoints = currentHP;
         uiBTL.EndTurn(); //End the turn of the current player (i.e. the healer) after the healing is done
+
     }
 
     //Increase the player's MP by a percentage.
@@ -1293,13 +1736,14 @@ public class Player : MonoBehaviour
         chosenSkill = (int)SKILLS.NO_SKILL;
         currentAilment = playerAilments.none;
         DisableAllBuffs();
+        uiBTL.PlayerHasBeenRevived(playerIndex);
     }
-
+    #endregion
     #region buffs and debuffs
 
     public void BuffStats(string statToBuff, float precentage, float lastsNumberOfTurns)
     {
-        Debug.Log("Stat to buff: " + statToBuff);
+        //Debug.Log("Stat to buff: " + statToBuff);
         lastsNumberOfTurns++; //Add one more turn since the system should count the number of turns based on the caster not the receiver. This way ensures that the queue goes around equal to the number of turns it the buff/debuff is supposed to last
         switch (statToBuff)
         {
@@ -1320,17 +1764,18 @@ public class Player : MonoBehaviour
                 }
                 else if (defenseBuffed && ((actualDEF > def && precentage > 0) || (actualDEF < def && precentage < 0))) //If defense has already been buffed, update the Q counter
                 {
+                    actualDEF = def + def * precentage; //Buffs don't stack
                     defenseBuffSkillQCounter = lastsNumberOfTurns;                   
                 }
                 else if (!defenseBuffed) //No buffs or debuffs have occurred so far
                 {
-                    Debug.Log("Actual defense before for " + nameOfCharacter + " is: " + actualDEF);
+                    //Debug.Log("Actual defense before for " + nameOfCharacter + " is: " + actualDEF);
                     defenseBuffed = true;
                     actualDEF = def + def * precentage;
                     defenseBuffSkillQCounter = lastsNumberOfTurns;
 
-                    Debug.Log("Actual defense now for " + nameOfCharacter + " is: " + actualDEF);
-                    Debug.Log("Counter: " + defenseBuffSkillQCounter);
+                    //Debug.Log("Actual defense now for " + nameOfCharacter + " is: " + actualDEF);
+                    //Debug.Log("Counter: " + defenseBuffSkillQCounter);
                 }
                 break;
             case "Attack":
@@ -1350,6 +1795,7 @@ public class Player : MonoBehaviour
                 }
                 else if (attackBuffed && ((actualATK > atk && precentage > 0) || (actualATK < atk && precentage < 0))) //Check if the buff or debuff is being extended
                 {
+                    actualATK = atk + atk * precentage;
                     attackBuffSkillQCounter = lastsNumberOfTurns;
                    
                 }
@@ -1378,12 +1824,12 @@ public class Player : MonoBehaviour
                 }
                 else if (agilityBuffed && ((actualAgi > agi && precentage > 0) || (actualAgi < agi && precentage < 0))) //If agility has already been buffed, update the Q counter
                 {
+                    actualAgi = agi + agi * precentage;
                     agilityBuffSkillQCounter = lastsNumberOfTurns;
                    
                 }
                 else if (!agilityBuffed) //No buffs or debuffs have occurred so far
                 {
-                   
                     agilityBuffed = true;
                     actualAgi = agi + agi * precentage;
                     agilityBuffSkillQCounter = lastsNumberOfTurns;
@@ -1406,6 +1852,7 @@ public class Player : MonoBehaviour
                 }
                 else if (strBuffed && ((actualSTR > str && precentage > 0) || (actualSTR < str && precentage < 0))) //If str has already been buffed, update the Q counter
                 {
+                    actualSTR = str + str * precentage;
                     strBuffSkillQCounter = lastsNumberOfTurns;
                     
                 }
@@ -1414,7 +1861,7 @@ public class Player : MonoBehaviour
                    
                     strBuffed = true;
                     actualSTR = str + str * precentage;
-                    Debug.Log(nameOfCharacter + " Strength is: " + actualSTR);
+                    //Debug.Log(nameOfCharacter + " Strength is: " + actualSTR);
                     strBuffSkillQCounter = lastsNumberOfTurns;
                 }
                 break;
@@ -1432,8 +1879,6 @@ public class Player : MonoBehaviour
                 }
                 break;
         }
-
-       
     }
 
     private void CheckForBuffs()
@@ -1446,9 +1891,19 @@ public class Player : MonoBehaviour
                 defenseBuffSkillQCounter = 0;
                 defenseBuffed = false;
                 actualDEF = def;
-                Debug.Log("Buff has ended");
+                //Debug.Log("Buff has ended");
                 uiBTL.UpdateActivityText("DEF is back to normal");
                 defBuffArrowIndicator.gameObject.SetActive(false);
+            }
+        }
+
+        if (lionsPrideIsActive && playerIndex == 1) //Only Oberon can have lion's pride deactivated
+        {
+            lionsPrideSkillQCounter--;
+            if(lionsPrideSkillQCounter<0)
+            {
+                lionsPrideIsActive = false;
+                lionsPrideSymbolOberonOnly.gameObject.SetActive(false);
             }
         }
 
@@ -1459,7 +1914,7 @@ public class Player : MonoBehaviour
             {
                 attackBuffSkillQCounter = 0;
                 attackBuffed = false;
-                actualATK = atk;
+                actualAttackBeforeRage = actualATK = atk; //Should the atk buff end before the RAGE, the player should return to their regular atk once RAGE is over
                 uiBTL.UpdateActivityText("ATK is back to normal");
                 atkBuffArrowIndicator.gameObject.SetActive(false);
             }
@@ -1612,7 +2067,10 @@ public class Player : MonoBehaviour
                 break;
         }
 
-        uiBTL.EndTurn(); //End the turn of the current player (i.e. the buffer) when the buffing is done
+        if (chosenSkill != (int)SKILLS.Ob_Lutenist && currentState != playerState.Rage) //When using Lutenist, the turn is ended by the enemies
+        {
+            uiBTL.EndTurn(); //End the turn of the current player (i.e. the buffer) when the buffing is done
+        }
     }
     
     private void DisableAllBuffs() //Called when the player dies. Disables all buffs.
@@ -1660,9 +2118,9 @@ public class Player : MonoBehaviour
             case playerAilments.fear:
                 if(fearTimer > 0)
                 {
-                    Debug.Log("Fear timer is larger than zero");
+                    //Debug.Log("Fear timer is larger than zero");
                     fearChance = Random.Range(0, 10);
-                    Debug.Log("Fear chance is: " + fearChance);
+                    //Debug.Log("Fear chance is: " + fearChance);
 
                     if(fearChance>=0 && fearChance <=3)
                     {
@@ -1670,7 +2128,7 @@ public class Player : MonoBehaviour
                     }
                     else
                     {
-                        Debug.Log(nameOfCharacter + " is scared and ended the turn");
+                        //Debug.Log(nameOfCharacter + " is scared and ended the turn");
                         affectedByFear = true;
                         fearTimer--; //Only decrease the timer if affected by fear ends up being true
                         uiBTL.UpdateActivityText(nameOfCharacter + " is too afraid...");
@@ -1695,7 +2153,42 @@ public class Player : MonoBehaviour
     {
         tiedSymbol.gameObject.SetActive(false);
         currentAilment = playerAilments.none;
+        uiBTL.UpdateActivityText(nameOfCharacter + " is no longer tied");
+    }
+
+    public void NegateStatusEffect(playerAilments ailment)
+    {
+        switch (ailment)
+        {
+            case playerAilments.fear:
+                statusPotionEffect.gameObject.SetActive(true);
+                currentAilment = playerAilments.none;
+                fearSymbol.gameObject.SetActive(false);
+                fearTimer = 0;
+                affectedByFear = false;
+                uiBTL.UpdateActivityText(nameOfCharacter + " is no longer afraid");
+                break;
+            case playerAilments.tied:
+                statusPotionEffect.gameObject.SetActive(true);
+                tiedToThisEnemy.Untie();
+                Untie();
+                break;
+        }
     }
 
     #endregion
+    private void FindAnAliveEnemy()
+    {
+        //Make sure the enemy you're trying to attack is alive
+        for (int i = 0; i < uiBTL.enemiesDead.Length; i++)
+        {
+            if (uiBTL.enemiesDead[i] == false && uiBTL.enemies[i] != null)
+            {
+                attackingThisEnemy = uiBTL.enemies[i];
+                break;
+            }
+        }
+    }
+
+
 }

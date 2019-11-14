@@ -57,6 +57,7 @@ public class BattleManager : MonoBehaviour
     //Temp
     private int totalLevels;//The sum of the enemies level
     public int expGain; //Determined by the enemy levels
+    public int goldGain;
 
     //Battle progress
     public bool battleHasEnded;
@@ -115,12 +116,12 @@ public class BattleManager : MonoBehaviour
 
     protected virtual void Start()
     {
-       // Debug.Log("BTL Start");
+       // //Debug.Log("BTL Start");
         uiBtl = UIBTL.instance;
         enemySpawner = EnemySpawner.instance;
         expManager = ExpManager.instance;
         uiBtl.numberOfEnemies = numberOfEnemies = enemySpawner.numberOfEnemies;
-        //Debug.Log("____ " + numberOfEnemies);
+        ////Debug.Log("____ " + numberOfEnemies);
         for(int i =0;i<5;i++)
         {
             enemySpawner.AddPos(enemyPos[i], i);
@@ -137,7 +138,7 @@ public class BattleManager : MonoBehaviour
 
     protected virtual void Update()
     {
-       // Debug.Log(numberOfPlayers);
+       // //Debug.Log(numberOfPlayers);
         //Number of players is decreased by the player scripts
         if(numberOfPlayers<=0 && allPlayersAdded == false)
         {
@@ -155,7 +156,7 @@ public class BattleManager : MonoBehaviour
         //Only start the battle when all players and enemies have been added
         if(allPlayersAdded && allEnemiesAdded)
         {
-            Debug.Log("Start Battle");
+            //Debug.Log("Start Battle");
             StartBattle();
             allPlayersAdded = false;
             allEnemiesAdded = false;
@@ -188,8 +189,10 @@ public class BattleManager : MonoBehaviour
         {
             allEnemiesAdded = true;
             //Temp code
-            expGain = 20 * totalLevels;
-            Debug.Log("EXP GAINNN " + expGain);
+            expGain = 10 * totalLevels;
+            goldGain = 5 * totalLevels;
+            //Debug.Log("EXP GAINNN " + expGain);
+            //Debug.Log("Gold GAINNN " + goldGain);
         }
 
         //This will probably need to change to avoid race conditions between startbattle and build Q
@@ -233,10 +236,6 @@ public class BattleManager : MonoBehaviour
         {
             NextOnQueue();
         }
-
-
-
-
     }
 
     public virtual void NextOnQueue()
@@ -245,17 +244,47 @@ public class BattleManager : MonoBehaviour
         if (battleQueue[0].playerReference != null && battleQueue[0].enemyReference == null)
         {
             uiBtl.ShowThisPlayerUI(battleQueue[0].playerIndex, battleQueue[0].name, battleQueue[0].playerReference);
+			DOM_playerTurn();
+
+            //Add it to the end of the Q
+            battleQueue.Add(battleQueue[0]);
+            ////Debug.Log("I've added "  + battleQueue[battleQueue.Count - 1].name);
+            //Remove it from the start of the Q 
+            battleQueue.RemoveAt(0);
         }
         else if (battleQueue[0].playerReference == null && battleQueue[0].enemyReference != null)
         {
-            battleQueue[0].enemyReference.EnemyTurn();
+           // if (!battleQueue[0].enemyReference.dead)
+           // {
+                battleQueue[0].enemyReference.EnemyTurn();
+                DOM_enemyTurn();
+
+                //Add it to the end of the Q
+                battleQueue.Add(battleQueue[0]);
+                ////Debug.Log("I've added "  + battleQueue[battleQueue.Count - 1].name);
+                //Remove it from the start of the Q 
+                battleQueue.RemoveAt(0);
+           // }
+           // else
+           // {
+          //      //Add it to the end of the Q
+               // battleQueue.Add(battleQueue[0]);
+                ////Debug.Log("I've added "  + battleQueue[battleQueue.Count - 1].name);
+                //Remove it from the start of the Q 
+               // battleQueue.RemoveAt(0);
+               // NextOnQueue();
+          //  }
         }
-        //Add it to the end of the Q
-        battleQueue.Add(battleQueue[0]);
-        //Debug.Log("I've added "  + battleQueue[battleQueue.Count - 1].name);
-        //Remove it from the start of the Q 
-        battleQueue.RemoveAt(0);
+
     }
+
+	protected virtual void DOM_playerTurn() {
+
+	}
+	
+	protected virtual void DOM_enemyTurn() {
+
+	}
 
     public virtual void BuildQueue()
     {
@@ -326,7 +355,7 @@ public class BattleManager : MonoBehaviour
                //The player has a higher agility
                battleQueue.Add(players[maxPlayerIndex]);
                //Add the player's image to the UI
-               uiBtl.AddImageToQ(players[maxPlayerIndex].playerReference.qImage);
+               uiBtl.AddImageToQ(players[maxPlayerIndex].playerReference.qImage, players[maxPlayerIndex].playerIndex, true);
                //Remove the player's agility from the list
                pSpeeds.RemoveAt(pSpeeds.Count - 1);
                //Add the player's index to the array of removed players
@@ -338,8 +367,8 @@ public class BattleManager : MonoBehaviour
                 //The enemy has the higher agility
                 battleQueue.Add(enemies[maxEnemyIndex]);
                 //Add the enemy's image to the UI
-                uiBtl.AddImageToQ(enemies[maxEnemyIndex].enemyReference.qImage);
-                Debug.Log(enemies[maxEnemyIndex].enemyReference.qImage);
+                uiBtl.AddImageToQ(enemies[maxEnemyIndex].enemyReference.qImage, enemies[maxEnemyIndex].playerIndex, false);
+                //Debug.Log(enemies[maxEnemyIndex].enemyReference.qImage);
                 //Remove the enemy's agility from the list
                 eSpeeds.RemoveAt(eSpeeds.Count - 1);
                 //Add the enemy's index to the array of removed enemy
@@ -352,7 +381,7 @@ public class BattleManager : MonoBehaviour
         {
             battleQueue.Add(players[maxPlayerIndex]);
             //Add the player's image to the UI
-            uiBtl.AddImageToQ(players[maxPlayerIndex].playerReference.qImage);
+            uiBtl.AddImageToQ(players[maxPlayerIndex].playerReference.qImage, players[maxPlayerIndex].playerIndex, true);
             pSpeeds.RemoveAt(pSpeeds.Count - 1);
             removedPlayerIndexes[maxPlayerIndex] = maxPlayerIndex;
         }
@@ -361,8 +390,8 @@ public class BattleManager : MonoBehaviour
         {
             battleQueue.Add(enemies[maxEnemyIndex]);
             //Add the enemy's image to the UI
-            uiBtl.AddImageToQ(enemies[maxEnemyIndex].enemyReference.qImage);
-            Debug.Log(enemies[maxEnemyIndex].enemyReference.qImage);
+            uiBtl.AddImageToQ(enemies[maxEnemyIndex].enemyReference.qImage, enemies[maxEnemyIndex].playerIndex,false);
+            //Debug.Log(enemies[maxEnemyIndex].enemyReference.qImage);
             eSpeeds.RemoveAt(eSpeeds.Count - 1);
             removedEnemyIndexes[maxEnemyIndex] = maxEnemyIndex;
         }
@@ -390,6 +419,10 @@ public class BattleManager : MonoBehaviour
             for (int i = 0; i < 4; i++)
             {
                 //Update the remaining HP of players in the btl manager and the partystats
+                if(players[i].playerReference.currentHP<=0.0f)
+                {
+                    players[i].playerReference.currentHP = 10.0f; //If a player dies, they leave the battle with 10 hp
+                }
                 players[i].currentHP = PartyStats.chara[i].hitpoints = players[i].playerReference.currentHP;
                 players[i].currentMP = PartyStats.chara[i].magicpoints = players[i].playerReference.currentMP;
                 //If the player ended the battle in rage mode, reset the rage to 0
@@ -406,6 +439,8 @@ public class BattleManager : MonoBehaviour
         //Clear out the enemies array
         for (int i =0;i<5;i++)
         {
+            if(enemies[i].enemyReference != null)
+            Destroy(enemies[i].enemyReference.gameObject);
             enemies[i] = null;
         }
     }
@@ -433,7 +468,7 @@ public class BattleManager : MonoBehaviour
         expManager.LevelUp(playerIndex);
         //Update the needed exp for next levelup
         players[playerIndex].expNeededForNextLevel = PartyStats.chara[playerIndex].neededExperience;
-        Debug.Log("You need this much to level up again! " + players[playerIndex].expNeededForNextLevel);
+        //Debug.Log("You need this much to level up again! " + players[playerIndex].expNeededForNextLevel);
     }
 
     public virtual void UpdatePlayerStats(int playerIndex)
@@ -463,6 +498,6 @@ public class BattleManager : MonoBehaviour
                 MainInventory.invInstance.consumableInv.Add(i);
             }
         }
-        Debug.Log("Consumables Count is: " + MainInventory.invInstance.consumableInv.Count);
+        //Debug.Log("Consumables Count is: " + MainInventory.invInstance.consumableInv.Count);
     }
 }

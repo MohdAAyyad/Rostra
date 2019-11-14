@@ -13,8 +13,6 @@ public class Farea : Enemy
     private Player thisPlayerIsDead; //Used as a reference for You Are Not Mine
     private Vector2 mothersPainInitialLoc = new Vector2(24.24f, -2.35f);
 
-    public GameObject deadlyTiesObject;
-
     private bool youAreNotMineUsedOnceThisFight = false;
 
 
@@ -79,6 +77,68 @@ public class Farea : Enemy
         statToDebuff = new string[2];
         statToDebuff[0] = "Defense";
         statToDebuff[1] = "Attack";
+
+
+        if (chainedSymbol)
+        {
+            chainedSymbol.gameObject.SetActive(false);
+        }
+        if (primaryChainedSymbol)
+        {
+            primaryChainedSymbol.gameObject.SetActive(false);
+        }
+        if (ralliedSymbol)
+        {
+            ralliedSymbol.gameObject.SetActive(false);
+        }
+        if (burnSymbol)
+        {
+            burnSymbol.gameObject.SetActive(false);
+        }
+        if (debuffArrow)
+        {
+            debuffArrow.gameObject.SetActive(false);
+        }
+        if (atkBuffArrowIndicator)
+        {
+            atkBuffArrowIndicator.gameObject.SetActive(false);
+        }
+        if (strBuffArrowIndicator)
+        {
+            strBuffArrowIndicator.gameObject.SetActive(false);
+        }
+        if (defBuffArrowIndicator)
+        {
+            defBuffArrowIndicator.gameObject.SetActive(false);
+        }
+        if (agiBuffArrowIndicator)
+        {
+            agiBuffArrowIndicator.gameObject.SetActive(false);
+        }
+        if (healthObject)
+        {
+            healthObject.gameObject.SetActive(false);
+        }
+        if (waitTurnsText)
+        {
+            waitTurnsText.gameObject.SetActive(false);
+        }
+        if (atkBuffEffect)
+        {
+            atkBuffEffect.gameObject.SetActive(false);
+        }
+        if (defBuffEffect)
+        {
+            defBuffEffect.gameObject.SetActive(false);
+        }
+        if (agiBuffEffect)
+        {
+            agiBuffEffect.gameObject.SetActive(false);
+        }
+        if (strBuffEffect)
+        {
+            strBuffEffect.gameObject.SetActive(false);
+        }
     }
 
 
@@ -89,74 +149,178 @@ public class Farea : Enemy
 
     public override void TakeDamage(float playerAttack, int numberOfAttacks)
     {
-        Debug.Log("Number of attacks " + numberOfAttacks);
-        Debug.Log("Received player attack: " + playerAttack);
-        if (tieThisPlayer != null)
+        if (playerAttack > 0.0f)
         {
-            tieThisPlayer.TakeDamage(playerAttack); //Damage the tied player should you get damaged
-            tiedTimer--;
-            if (tiedTimer <= 0)
+            if (tieThisPlayer != null)
             {
-                tiedTimer = 0;
-                tieThisPlayer.Untie();
-                chain.gameObject.SetActive(false);
-                tieThisPlayer = null;
+                tieThisPlayer.TakeDamage(playerAttack); //Damage the tied player should you get damaged
+                tiedTimer--;
+                if (tiedTimer <= 0)
+                {
+                    Untie();
+                }
             }
-        }
-        float damage = playerAttack - ((eDefence / (20.0f + eDefence)) * playerAttack);
-        currentHP -= damage;
-        totalDamageSustained += damage;
-        damageText.gameObject.SetActive(true);
-        damageText.text = Mathf.RoundToInt(damage).ToString();
-        battleManager.enemies[enemyIndexInBattleManager].currentHP = currentHP; //Update the BTL manager with the new health
-        HP.fillAmount = currentHP / maxHP;
+            float damage = playerAttack - ((eDefence / (20.0f + eDefence)) * playerAttack);
+            currentHP -= damage;
+            totalDamageSustained += damage;
+            damageText.gameObject.SetActive(true);
+            damageText.text = Mathf.RoundToInt(damage).ToString();
+            battleManager.enemies[enemyIndexInBattleManager].currentHP = currentHP; //Update the BTL manager with the new health
+            HP.fillAmount = currentHP / maxHP;
 
-        if (currentHP <= 0.0f)
-        {
-            if (bossPhase == 1)
+            if (currentHP <= 1.0f)
             {
-                //Reset and get ready for phase 2
-                currentState = EnemyState.idle;
-                waitTime = 0;
-                waitTurnsText.text = "0";
-                chosenSkill = fareaSkills.none;
-                lullWait.gameObject.SetActive(false);
-                wailWait.gameObject.SetActive(false);
-                animator.SetBool("Phase2", true);
+                if (bossPhase == 1)
+                {
+                    //Reset and get ready for phase 2
+                    animator.SetBool("Phase2", true);
+                    currentState = EnemyState.idle;
+                    waitTime = 0;
+                    waitTurnsText.text = "0";
+                    chosenSkill = fareaSkills.none;
+                    lullWait.gameObject.SetActive(false);
+                    wailWait.gameObject.SetActive(false);
+
+                }
+                animator.SetBool("Death", true);
             }
-            animator.SetBool("Death", true);
+            else
+            {
+                if (numberOfAttacks <= 0)
+                {
+                    uiBTL.EndTurn(); //Only end the turn after the damage has been taken
+                }
+            }
+
+            if (currentState != EnemyState.waiting)
+            {
+                animator.SetBool("Hit", true);
+            }
+
+            if (currentHP < 0.5f * maxHP)
+            {
+                //If the current health is less than half the max health, then make it more probable to use You Are Not Mine
+                //If you have not used it yet
+                if (!youAreNotMineUsedOnceThisFight)
+                {
+                    //Debug.Log("Farea current HP: " + currentHP);
+                    //Debug.Log("Farea max HP: " + maxHP);
+
+                    skillChanceModifier = 2.0f;
+                }
+            }
         }
         else
         {
-            if (numberOfAttacks <= 0)
+            if (missText != null)
             {
-                uiBTL.EndTurn(); //Only end the turn after the damage has been taken
-            }
-        }
-
-        if (currentState != EnemyState.waiting)
-        {
-            animator.SetBool("Hit", true);
-        }
-
-        if (currentHP < 0.5f * maxHP)
-        {
-            //If the current health is less than half the max health, then make it more probable to use You Are Not Mine
-            //If you have not used it yet
-            if (!youAreNotMineUsedOnceThisFight)
-            {
-                Debug.Log("Farea current HP: " + currentHP);
-                Debug.Log("Farea max HP: " + maxHP);
-
-                skillChanceModifier = 2.0f;
+                missText.gameObject.SetActive(true);
             }
         }
 
     }
 
+    public override void TakeDamage(float playerAttack, int numberOfAttacks, int debuffIndex, float debuffValuePercent, int debuffTimer, string debuffSubIndex, EnemyStatusAilment ailment)
+    {
+        if (playerAttack > 0.0f) //Don't need to calcualte damage if the incoming attack is debuff only
+        {
+            //Didn't recall the original function cause the "Hit" animation ends the turn
+            //Debug.Log("Received player attack: " + playerAttack);
+            float damage = playerAttack - ((actualDEF / (20.0f + actualDEF)) * playerAttack);
+            damage *= ralliedDamageModifier; //Increase damage if rallied;
+            currentHP -= damage;
+            damageText.gameObject.SetActive(true);
+            damageText.text = Mathf.RoundToInt(damage).ToString();
+            battleManager.enemies[enemyIndexInBattleManager].currentHP = currentHP; //Update the BTL manager with the new health
+            HP.fillAmount = currentHP / maxHP;
+        }
+        if (playerAttack >= 0.0f) //if incoming damage is negative, then it was a miss
+        {
+            switch (debuffIndex)
+            {
+                case 0: // Ailment
+
+                    switch (ailment)
+                    {
+                        case EnemyStatusAilment.chained:
+                            break;
+                        case EnemyStatusAilment.rallied:
+                            if (currentStatusAilment0 != EnemyStatusAilment.rallied && currentStatusAilment1 != EnemyStatusAilment.rallied) //Cannot rally an enemy that's already been rallied against
+                            {
+                                ralliedWaitTime = debuffTimer;
+                                ralliedDamageModifier = 2.0f;
+                                ralliedSymbol.gameObject.SetActive(true);
+                                uiBTL.EndTurn(); //Rally doesn't do any damage
+                            }
+                            break;
+                        case EnemyStatusAilment.burn:
+                            if (currentStatusAilment0 != EnemyStatusAilment.burn && currentStatusAilment1 != EnemyStatusAilment.burn) //Cannot burn an enemy that's already been burned
+                            {
+                                burnedWaitTime = debuffTimer;
+                                burnSymbol.gameObject.SetActive(true);
+                                uiBTL.EndTurn(); //Rally doesn't do any damage
+                            }
+                            break;
+                    }
+                    //Check which of the two ailments is set to none.
+                    // If both of them are filled, overwrite the 0 spot
+                    if (currentStatusAilment0 == EnemyStatusAilment.none)
+                    {
+                        currentStatusAilment0 = ailment;
+                    }
+                    else if (currentStatusAilment1 == EnemyStatusAilment.none)
+                    {
+                        currentStatusAilment1 = ailment;
+                    }
+                    else if (currentStatusAilment0 == EnemyStatusAilment.rallied)
+                    {
+                        NoLongerRallied();
+                        currentStatusAilment0 = ailment;
+                    }
+                    break;
+                case 1: //Debuff
+                    BuffStats(debuffSubIndex, -debuffValuePercent, debuffTimer);
+                    break;
+            }
+
+            animator.SetBool("Hit", true);
+
+            if (currentHP < 1.0f) //Avoid near zero
+            {
+                if (bossPhase == 1)
+                {
+                    //Reset and get ready for phase 2
+                    animator.SetBool("Phase2", true);
+                    currentState = EnemyState.idle;
+                    waitTime = 0;
+                    waitTurnsText.text = "0";
+                    chosenSkill = fareaSkills.none;
+                    lullWait.gameObject.SetActive(false);
+                    wailWait.gameObject.SetActive(false);
+
+                }
+                animator.SetBool("Death", true);
+            }
+            else
+            {
+                if (numberOfAttacks <= 0)
+                {
+                   uiBTL.EndTurn();
+                }
+            }
+        }
+        else
+        {
+            if (missText != null)
+            {
+                missText.gameObject.SetActive(true);
+            }
+        }
+    }
+
     private void StartPhase2()
     {
-        Debug.Log("Start Phase 2");
+        //Debug.Log("Start Phase 2");
         currentState = EnemyState.idle;
         uiBTL.EndTurn(); //End the player's turn
         bossPhase = 2;
@@ -176,7 +340,10 @@ public class Farea : Enemy
 
     public override void EnemyTurn()
     {
-        Debug.Log("Enemy turn state: " + currentState);
+        uiBTL.backdropHighlighter.gameObject.SetActive(true);
+        uiBTL.DisableActivtyText();
+        CheckForAilments();
+        CheckForBuffs();
         //Check if we're waiting on a skill first
         if (currentState == EnemyState.waiting)
         {
@@ -200,7 +367,7 @@ public class Farea : Enemy
         {
             //Only update the attackChance when no skill is on the waiting list
             attackChance = Random.Range(0.0f, 100.0f);
-            //attackChance = 30; //Testing
+            //attackChance = 50; //Testing
 
             if (bossPhase == 1)
             {
@@ -217,7 +384,7 @@ public class Farea : Enemy
                 }
                 else if (attackChance >= 40.0f && attackChance < 70.0f) //Judgment and Wrath
                 {
-                    attackThisPlayer = battleManager.players[Random.Range(0, 4)].playerReference;
+                    attackThisPlayer = battleManager.players[Random.Range(0, 3)].playerReference;
                     animator.SetBool("JudgementAndWrath", true);
                     uiBTL.UpdateActivityText("Judgement & Wrath");
                 }
@@ -232,7 +399,7 @@ public class Farea : Enemy
             }
             else if (bossPhase == 2)
             {
-                Debug.Log("Boss is in fact in phase 2");
+                //Debug.Log("Boss is in fact in phase 2");
                 if (totalDamageSustained >= totalDamageThreshold)
                 {
                     //If the total damage sustained is over the threshold, Mother's Pain must be done in 2 turns rathe than 3
@@ -258,8 +425,8 @@ public class Farea : Enemy
                             thisPlayerIsDead = null;
                         }
                     }
-                    attackChance = Random.Range(0.0f, 100.0f);
-                    Debug.Log("Attack chance is: " + attackChance);
+                    attackChance = Random.Range(0.0f, 100.0f * skillChanceModifier);
+                    //Debug.Log("Attack chance is: " + attackChance);
                     //attackChance = 50; //Testing
                     if (attackChance >= 0.0f && attackChance < 20.0f * skillChanceModifier && isThereADeadPlayer)
                     {
@@ -303,7 +470,7 @@ public class Farea : Enemy
                     }
                     else if (attackChance >= 70.0f && attackChance < 80.0f) //Judgment and Wrath
                     {
-                        attackThisPlayer = battleManager.players[Random.Range(0, 4)].playerReference;
+                        attackThisPlayer = battleManager.players[Random.Range(0, 3)].playerReference;
                         animator.SetBool("JudgementAndWrath", true);
                         uiBTL.UpdateActivityText("Judgement & Wrath");
                     }
@@ -374,12 +541,23 @@ public class Farea : Enemy
         uiBTL.EndTurn();
     }
 
+    //I know the below two functions are basically the same, I can't use recurisve calls with a return function cause it needs you to return something 
+    //Deadly ties chooser
     private void TieAPlayer()
     {
-        tieThisPlayer = battleManager.players[Random.Range(0, 4)].playerReference;
+        tieThisPlayer = battleManager.players[Random.Range(0, 3)].playerReference;
         if (tieThisPlayer.dead)
         {
             TieAPlayer(); //Make sure whatever player you choose is alive
+        }
+    }
+    //Lullaby of Despair chooser
+    private void ScareAPlayer()
+    {
+        attackThisPlayer = battleManager.players[Random.Range(0, 3)].playerReference;
+        if (attackThisPlayer.dead)
+        {
+            ScareAPlayer(); //Make sure whatever player you choose is alive
         }
     }
 
@@ -411,7 +589,7 @@ public class Farea : Enemy
                 //Update the UI
                 uiBTL.UpdateActivityText("Lullaby Of Despair");
                 //Choose a player at random
-                attackThisPlayer = battleManager.players[Random.Range(0, battleManager.players.Length)].playerReference;
+                ScareAPlayer();
 
                 //If the player has no ailments, then affect thme with fear
                 if (attackThisPlayer.currentAilment == Player.playerAilments.none) //Make sure you target 
@@ -451,6 +629,7 @@ public class Farea : Enemy
                 }
                 else
                 {
+                    youAreNotMineObject.gameObject.SetActive(false);
                     thisPlayerIsDead.TakeDamage(eAttack * 1.5f);
                 }
                 break;

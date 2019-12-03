@@ -5,6 +5,7 @@ using UnityEngine;
 public class MerchantTrigger : ConversationTrigger
 {
     private bool interactedWith = false;
+    public ITEM_ID[] itemsThisMerchantCanSell;
 
     public enum merchantState
     {
@@ -42,6 +43,11 @@ public class MerchantTrigger : ConversationTrigger
         }
         else if (currentState == merchantState.idle)
         {
+            ItemShop.singleton.shopItems.Clear();
+            for(int i = 0; i<itemsThisMerchantCanSell.Length;i++)
+            {
+                ItemShop.singleton.shopItems.Add((int)itemsThisMerchantCanSell[i]);
+            }
             interactedWith = true;
             ItemShopUI.Singleton.activeMerchant = this;
             base.TriggerConvo();

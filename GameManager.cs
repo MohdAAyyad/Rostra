@@ -16,6 +16,7 @@ public class GameManager : MonoBehaviour
             instance = this;
             DontDestroyOnLoad(this.gameObject);
             Application.targetFrameRate = targetFPS;
+			AudioListener.volume = 1f;
         }
         else
         {
@@ -39,7 +40,7 @@ public class GameManager : MonoBehaviour
     private void Update()
     {
         if (Application.targetFrameRate != targetFPS)
-        {
+       {
             Application.targetFrameRate = targetFPS;
         }
     }

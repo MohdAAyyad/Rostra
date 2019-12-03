@@ -8,8 +8,11 @@ public class Fade : MonoBehaviour
 {
     private Image thisImage;
     public WMEnemy enemyHolder;
+    public WMEnemy secondBossHolder; //Bad code, have to. 
+    public bool tutorial;
     private bool fadeOut;
     private bool transitionToBattle;
+    private bool transitionToSecondBossFight; //Bad code, have to. 
     private bool transitionToVictory;
     private bool transitionToDefeat;
     private bool transitionToWorldMap;
@@ -26,6 +29,7 @@ public class Fade : MonoBehaviour
     public GameObject endTestPanel;
     private UIBTL uiBtl;
     private AudioManager audioManager;
+    private int bossCounter = -1; //Checks if which boss we're fighitng
 
 
     void Start()
@@ -33,6 +37,7 @@ public class Fade : MonoBehaviour
         thisImage = gameObject.GetComponent<Image>();
         fadeOut = false;
         transitionToBattle = false;
+        transitionToSecondBossFight = false;
         transitionToVictory = false;
         transitionToDefeat = false;
         transitionToWorldMap = false;
@@ -52,7 +57,7 @@ public class Fade : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.Space) && canGoToSurvey)
         {
-            Application.OpenURL("https://drive.google.com/open?id=17EJ--PiJVDGuFr5tFpWhYkoR6FIxa7wq60VD2kaAhgE");
+            Application.OpenURL("https://docs.google.com/forms/d/1YV2OpAa3DlDGKMnicz97-1V5Shs8iR6eQgThn0fjRzE");
             Application.Quit();
         }
         if (Input.GetKeyDown(KeyCode.P))
@@ -85,6 +90,16 @@ public class Fade : MonoBehaviour
                     TransitionIntoBattle();
                     fadeOut = false;
                 }
+                else if(transitionToSecondBossFight)
+                {
+                    if(transitionOutOfACutscene == true) //If we're transitioning into another boss, chances are we've come from a cutscene
+                    {
+                        transitionOutOfACutscene = false;
+                    }
+                    transitionToSecondBossFight = false;
+                    TransitionToSecondBossFight();
+                    fadeOut = false;
+                }
                 else if (transitionToVictory)
                 {
                     transitionToVictory = false;
@@ -101,15 +116,18 @@ public class Fade : MonoBehaviour
                 {
                     //Debug.Log("Transition is now falseee");
                     transitionToWorldMap = false;
-                    if (enemyHolder != null) //enemyHolder will only exist in sublocations, not in the world map
+                    if (WMEnemy.startTutorial) //Is the fight we're in a tutorial?
                     {
-                        SceneManager.UnloadSceneAsync(SceneManager.GetSceneByName(enemyHolder.tutorial ? "Queue Scene 2" : "Queue Scene"));
+                        SceneManager.UnloadSceneAsync(SceneManager.GetSceneByName("Queue Scene 2"));
+                        WMEnemy.startTutorial = false;
                     }
                     else
                     {
                         SceneManager.UnloadSceneAsync(SceneManager.GetSceneByName("Queue Scene"));
                     }
-                    audioManager.PlayThisClip("WorldMapMusic1");
+                    audioManager.PlayThePreviousSong();
+                    NewWMEnemy.isActive = true;
+                    CutsceneManager.instance.isActive = false;
                 }
                 else if (transitionToEndTest)
                 {
@@ -120,8 +138,10 @@ public class Fade : MonoBehaviour
                 else if(transitionIntoACutscene)
                 {
                     fadeOut = !fadeOut; //Fade out again
-                    if (cutsceneTriggerRef != null)
+					//Debug.Log("Transition into a cutscene works");
+					if (cutsceneTriggerRef != null)
                     {
+						Debug.Log("Working");
                         cutsceneTriggerRef.TriggerCutscene(); //Load the cutscene while fading out
                         audioManager.PlayThisClip("Cutscene1");
                         cutsceneTriggerRef = null;
@@ -132,10 +152,11 @@ public class Fade : MonoBehaviour
                     fadeOut = !fadeOut;
                     CutsceneManager.instance.End();
                     transitionOutOfACutscene = false;
-                    audioManager.PlayThisClip("WorldMapMusic1");
+                    audioManager.PlayThePreviousSong();
                 }
                 else if(transitionToMainMenu)
                 {
+                    GameManager.instance.DestoryUndestroyables();
                     transitionToMainMenu = false;
                     SceneManager.LoadScene("Main Menu");
                 }
@@ -145,19 +166,34 @@ public class Fade : MonoBehaviour
 
     public void FlipFadeToBattle(WMEnemy enemyCollidingWithPlayer)
     {
-		
 		enemyHolder = enemyCollidingWithPlayer;
         fadeOut = true;
         transitionToBattle = true;
-        audioManager.PlayThisClip("BattleMusic1");
     }
     //Two version of flip fade, one for controlled situations where the WM is assigned from the editor and one for the world map
     public void FlipFadeToBattle()
     {
-		//Debug.Log("Flipped To Battle");
-		fadeOut = !fadeOut;
-        transitionToBattle = true;
-        audioManager.PlayThisClip("BattleMusic1");
+        if(!BattleManager.battleInProgress)
+        BattleManager.battleInProgress = true; //A battle has just started
+
+        if(EnemySpawner.instance.isBoss)
+        {
+            bossCounter++;
+        }
+        //Debug.Log("Flip Fade to battle and counter is " + bossCounter);
+
+        if (bossCounter == 1 && enemyHolder!=null) //Boss counter 0 is Farea, 1 is Grendol
+        {
+            Debug.Log("Hit");
+            fadeOut = true;
+            transitionToSecondBossFight = true;
+        }
+        else
+        {
+            Debug.Log("miss");
+            fadeOut = true;
+            transitionToBattle = true;
+        }
     }
 
     public void FlipFadeToVictory()
@@ -179,18 +215,22 @@ public class Fade : MonoBehaviour
         cutsceneTriggerRef = cutTrigger;
 		fadeOut = !fadeOut;
 		transitionIntoACutscene = true;
-
+		//Debug.Log("Transition into a cutscene called");
 	}
     public void TransitionOutOfACutscene()
     {
         transitionOutOfACutscene = true;
-        fadeOut = !fadeOut;
+        fadeOut = true;
        
     }
     public void TransitionIntoBattle()
     {
-       
         enemyHolder.TransitionIntoBattle();
+    }
+
+    public void TransitionToSecondBossFight() //Bad code. Have to
+    {
+        secondBossHolder.TransitionIntoBattle();
     }
 
     public void TransitionIntoVictory()

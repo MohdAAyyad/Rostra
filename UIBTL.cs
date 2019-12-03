@@ -10,6 +10,7 @@ public class UIBTL : MonoBehaviour
     private BattleManager btlManager;
     private MainInventory inventory;
     private SkillsInventory skills;
+    private AudioManager audioManager;
 
     public GameObject playerTurnIndicator;
     public GameObject chooseEnemyArrow;
@@ -138,8 +139,6 @@ public class UIBTL : MonoBehaviour
 
     //End Battle Screen
     public Fade fadePanel;
-    public GameObject victoryPanel;
-    public GameObject defeatPanel;
     private bool battleHasEnded;
 
 
@@ -147,6 +146,9 @@ public class UIBTL : MonoBehaviour
     public static bool conversationAfterBattle = false; //If true, a conversation will start right after the battle ends
     private DialogueManager dialogueManager;
     private DialogueContainer dialogueContainer;
+
+    //Background image
+    public  SpriteRenderer backgroundImage;
 
     #region singleton
     public static UIBTL instance;
@@ -171,6 +173,7 @@ public class UIBTL : MonoBehaviour
         btlManager = BattleManager.instance;
         inventory = MainInventory.invInstance;
         skills = SkillsInventory.invInstance;
+        audioManager = AudioManager.instance;
 
         enemies = new Enemy[5]; //Filled by the BTL Manager in Add Enemy
         enemiesDead = new bool[5]; //Every entry is turned to true by the enemy that dies
@@ -261,6 +264,8 @@ public class UIBTL : MonoBehaviour
         }
 
         lastImageIndex = numberOfEnemies + 3; //Number of enemies + number of players - 1
+
+        backgroundImage.sprite = PassInfoIntoBattle.battleBackgroundImage;
     }
 
 
@@ -436,7 +441,7 @@ public class UIBTL : MonoBehaviour
 
     public virtual void ReArrangeQ() //Called when an enemy has died, we need to move all the images before the dead image
     {
-        //Debug.Log(enemyHasDied);
+       // Debug.Log(enemyHasDied);
        // ////Debug.Log("We are rearranging " + enemyHasDied);
        // ////Debug.Log("Dead deadEnemyImagePos count " + deadEnemyImagePos.Count);
         if (enemyHasDied)
@@ -486,16 +491,17 @@ public class UIBTL : MonoBehaviour
         }
         else
         {
-            //Debug.Log("Move images now baby");
+           // Debug.Log("Move images now baby");
             for(int i =0;i<allTheImagesBeforeTheDeadOne.Length;i++)
             {
                 allTheImagesBeforeTheDeadOne[i] = null; //Reset the array
             }
             moveImagesNow = true;
+            controlsIndicator = 0; //Reset the player control indicator
             currentState = btlUIState.updateQ;
             deadEnemyImageIndex.Clear(); //Reset
             deadEnemyImagePos.Clear();
-            ////Debug.Log("We have moved to Update Q");
+            //Debug.Log("We have moved to Update Q");
         }
     }
 
@@ -649,6 +655,7 @@ public class UIBTL : MonoBehaviour
                 case 0://Highlighter is at attack
                     if (Input.GetKeyDown(KeyCode.DownArrow) && playerInControl.currentState != Player.playerState.Rage)
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 1;
                         highlighter.transform.position = highlighiterPos[1].transform.localPosition;
 
@@ -659,6 +666,7 @@ public class UIBTL : MonoBehaviour
                     }
                     else if (Input.GetKeyDown(KeyCode.RightArrow)) //Go to skills
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 2;
                         highlighter.transform.position = highlighiterPos[2].transform.localPosition;
 
@@ -669,6 +677,7 @@ public class UIBTL : MonoBehaviour
                     }
                     else if (Input.GetKeyDown(KeyCode.LeftArrow) && playerInControl.canRage && playerInControl.currentState != Player.playerState.Rage) //Go to Rage
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 4;
                         highlighter.transform.position = highlighiterPos[4].transform.localPosition;
 
@@ -679,6 +688,7 @@ public class UIBTL : MonoBehaviour
                     }
                     else if(Input.GetKeyDown(KeyCode.LeftArrow) && !playerInControl.canRage) // Go to skills
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 2;
                         highlighter.transform.position = highlighiterPos[2].transform.localPosition;
 
@@ -689,6 +699,7 @@ public class UIBTL : MonoBehaviour
                     }
                     else if (Input.GetButtonDown("Confirm")) //Player has chosen attack
                     {
+                        audioManager.PlayThisEffect("uiConfirm");
                         if (activityText.text != "") //If there's an active text, disable it once the player moves the indicator
                         {
                             DisableActivtyText();
@@ -708,16 +719,19 @@ public class UIBTL : MonoBehaviour
                 case 1://Highlighter is at Guard
                     if (Input.GetKeyDown(KeyCode.UpArrow))
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 0;
                         highlighter.transform.position = highlighiterPos[0].transform.localPosition;
                     }
                     else if (Input.GetKeyDown(KeyCode.RightArrow))
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 3;
                         highlighter.transform.position = highlighiterPos[3].transform.localPosition;
                     }
                     else if (Input.GetButtonDown("Confirm")) //Player has chosen Guard
                     {
+                        audioManager.PlayThisEffect("uiConfirm");
                         UpdateActivityText("Guard");
                         playerInControl.Guard();
                     }
@@ -727,11 +741,13 @@ public class UIBTL : MonoBehaviour
                     //Highlighter is at Skills
                     if ((Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow)) && playerInControl.currentState != Player.playerState.Rage)
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 3;
                         highlighter.transform.position = highlighiterPos[3].transform.localPosition;
                     }
                     else if (Input.GetKeyDown(KeyCode.LeftArrow))
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 0;
                         highlighter.transform.position = highlighiterPos[0].transform.position;
                     }
@@ -742,6 +758,7 @@ public class UIBTL : MonoBehaviour
                     }
                     else if (Input.GetButtonDown("Confirm")) //Player has chosen Skills
                     {
+                        audioManager.PlayThisEffect("uiConfirm");
                         previousState = btlUIState.choosingBasicCommand;
                         if (!firstTimeOpenedSkillsPanel)
                         {
@@ -749,7 +766,14 @@ public class UIBTL : MonoBehaviour
                             for (int i = 0; i < 4; i++)
                             {
                                 skillNames[i].text = skills.SkillName(PartySkills.skills[playerInControl.playerIndex].equippedSkills[i]);
-                                mpCosts[i].text = "MP: " + skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[i])[5].ToString();
+                                if (PartySkills.skills[playerInControl.playerIndex].equippedSkills[i] != (int)SKILLS.Ar_ManaCharge) //Mana charge costs HP. This needs to be displayed correctly
+                                {
+                                    mpCosts[i].text = "MP: " + skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[i])[5].ToString();
+                                }
+                                else
+                                {
+                                    mpCosts[i].text = "HP: " + skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[i])[5].ToString();
+                                }
                             }
                             firstTimeOpenedSkillsPanel = true;
                         }
@@ -767,21 +791,25 @@ public class UIBTL : MonoBehaviour
                     //Highlighter is at Items
                     if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 2;
                         highlighter.transform.position = highlighiterPos[2].transform.localPosition;
                     }
                     else if (Input.GetKeyDown(KeyCode.LeftArrow))
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 1;
                         highlighter.transform.position = highlighiterPos[1].transform.localPosition;
                     }
                     else if (Input.GetKeyDown(KeyCode.RightArrow) && playerInControl.canRage)
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 4;
                         highlighter.transform.position = highlighiterPos[4].transform.localPosition;
                     }
                     else if (Input.GetButtonDown("Confirm")) //Player has chosen Items
                     {
+                        audioManager.PlayThisEffect("uiConfirm");
                         previousState = btlUIState.choosingBasicCommand;
                         //Reset the items panel
                         itemsPanel.gameObject.SetActive(true);
@@ -806,21 +834,25 @@ public class UIBTL : MonoBehaviour
                 case 4://Hilighter is at RAGE
                     if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 3;
                         highlighter.transform.position = highlighiterPos[3].transform.localPosition;
                     }
                     else if (Input.GetKeyDown(KeyCode.LeftArrow))
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 2;
                         highlighter.transform.position = highlighiterPos[2].transform.localPosition;
                     }
                     else if (Input.GetKeyDown(KeyCode.RightArrow))
                     {
+                        audioManager.PlayThisEffect("uiScroll");
                         controlsIndicator = 0;
                         highlighter.transform.position = highlighiterPos[0].transform.localPosition;
                     }
                     else if (Input.GetButtonDown("Confirm")) //Player has chosen Rage
                     {
+                        audioManager.PlayThisEffect("uiConfirm");
                         rageText.color = Color.yellow;
                         itemsText.color = Color.gray;
                         guardText.color = Color.gray;
@@ -839,6 +871,7 @@ public class UIBTL : MonoBehaviour
     {
         if (Input.GetButtonDown("Cancel"))
         {
+            audioManager.PlayThisEffect("uiCancel");
             skillsPanel.gameObject.SetActive(false);
             controlsPanel.gameObject.SetActive(true);
             controlsIndicator = 2; //Back to skills in the choosingbasicommands
@@ -847,6 +880,7 @@ public class UIBTL : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.DownArrow) && controlsIndicator < 3)
         {
+            audioManager.PlayThisEffect("uiScroll");
             //Make sure there's a skill below the one highlighted right now
             if (PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator + 1] != (int)SKILLS.NO_SKILL)
             {
@@ -855,14 +889,17 @@ public class UIBTL : MonoBehaviour
         }
         else if (Input.GetKeyDown(KeyCode.DownArrow) && controlsIndicator >= 3)
         {
+            audioManager.PlayThisEffect("uiScroll");
             controlsIndicator = 0;
         }
         else if (Input.GetKeyDown(KeyCode.UpArrow) && controlsIndicator > 0)
         {
+            audioManager.PlayThisEffect("uiScroll");
             controlsIndicator--;
         }
         else if (Input.GetKeyDown(KeyCode.UpArrow) && controlsIndicator <= 0)
         {
+            audioManager.PlayThisEffect("uiScroll");
             //Make sure the player goes to the last equipped skills, not necessarily number 3
             for (int i = 3; i > 0; i--)
             {
@@ -875,128 +912,145 @@ public class UIBTL : MonoBehaviour
         }
         else if (Input.GetButtonDown("Confirm"))
         {
+            audioManager.PlayThisEffect("uiConfirm");
             if (PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator] != (int)SKILLS.NO_SKILL)
             {
-                //Choose skill, make sure you have enough MP to use it, then check if it targets players or enemies       
-                if (playerInControl.currentMP >= skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[5])
+                if (PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator] != (int)SKILLS.Ar_ManaCharge) //Mana Charge is speical in that it checks for HP not for MP. Everything else works in a generic way so make sure we are not choosing MC first
                 {
-                    skillsPanel.gameObject.SetActive(false);
-                    controlsPanel.gameObject.SetActive(false);
+                    //Choose skill, make sure you have enough MP to use it, then check if it targets players or enemies       
+                    if (playerInControl.currentMP >= skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[5])
+                    {
+                        skillsPanel.gameObject.SetActive(false);
+                        controlsPanel.gameObject.SetActive(false);
 
-                    //Check for Frea's special I Don't Miss skillc and Oberon's Lion's Pride skill which automatically targets the controlled character
-                    if (PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator] == (int)SKILLS.Fr_IDontMiss || PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator] == (int)SKILLS.Ob_LionsPride)
-                    {
-                        UpdateActivityText(skills.SkillName(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator]));
-                        playerInControl.UseSkillOnOnePlayer(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator],
-                                                           skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[5],
-                                                           skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[2],
-                                                           playerInControl);
-                    }
-                    else
-                    {
-                        switch (skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[4])
+                        //Check for Frea's special I Don't Miss skillc and Oberon's Lion's Pride skill which automatically targets the controlled character
+                        if (PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator] == (int)SKILLS.Fr_IDontMiss || PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator] == (int)SKILLS.Ob_LionsPride)
                         {
-                            case (float)SKILL_TYPE.SINGLE_TARGET_ATK:
-                                MoveEnemyIndicatorToFirstAliveEnemy();
-                                chooseEnemyArrow.SetActive(true);
-                                activeRange = playerInControl.range;
-                                previousState = btlUIState.choosingSkillsCommand;
-                                currentState = btlUIState.choosingEnemy;
-                                break;
-                            case (float)SKILL_TYPE.SINGLE_TARGET_DEBUFF:
-                                MoveEnemyIndicatorToFirstAliveEnemy();
-                                chooseEnemyArrow.SetActive(true);
-                                previousState = btlUIState.choosingSkillsCommand;
-                                currentState = btlUIState.choosingEnemy;
-                                break;
-                            case (float)SKILL_TYPE.ALL_TARGETS_ATK:
-                                //Activate the indicators for alive enemies only
-                                for (int i = 0; i < enemiesDead.Length; i++)
-                                {
-                                    if (enemiesDead[i] == false && btlManager.enemies[i].enemyReference != null)
-                                    {
-                                        chooseEnemyArrowForSelectAll[i].gameObject.SetActive(true);
-                                    }
-                                }
-                                previousState = btlUIState.choosingSkillsCommand;
-                                currentState = btlUIState.choosingAllEnemies;
-                                break;
-                            case (float)SKILL_TYPE.ALL_TARGETS_DEBUFF:
-                                break;
-                            case (float)SKILL_TYPE.FULL_ROW_ATK:
-                                if (!enemiesDead[0] || !enemiesDead[1] || !enemiesDead[2]) //Check if there are any enemies alive in the first row
-                                {
-                                    chooseEnemyRowIndicator = 0; //Enemy row indicator goes to the first row where at least an enemy is alive
-
-                                    for (int i = 0; i < 3; i++) //Check which enemies are actually alive in the first row, and activate their indicators
-                                    {
-                                        if (enemiesDead[i] == false && btlManager.enemies[i].enemyReference != null)
-                                        {
-                                            chooseEnemyArrowForSelectAll[i].gameObject.SetActive(true);
-                                        }
-                                    }
-
-                                }
-                                else if (!enemiesDead[3] || !enemiesDead[4]) //Check for the ranged row
-                                {
-                                    chooseEnemyRowIndicator = 1; //Enemy row indicator goes to the first row where at least an enemy is alive
-
-                                    for (int i = 3; i < 5; i++) //Check which enemies are actually alive in the ranged row, and activate their indicators
-                                    {
-                                        if (enemiesDead[i] == false && btlManager.enemies[i].enemyReference != null)
-                                        {
-                                            chooseEnemyArrowForSelectAll[i].gameObject.SetActive(true);
-                                        }
-                                    }
-                                }
-                                previousState = btlUIState.choosingSkillsCommand;
-                                currentState = btlUIState.choosingRowOfEnemies;
-                                break;
-                            case (float)SKILL_TYPE.FULL_ROW_DEBUFF:
-                                break;
-                            case (float)SKILL_TYPE.SINGLE_PLAYER_HEAL:
-                                choosePlayerArrow.gameObject.SetActive(true);
-                                playerIndicatorIndex = 0;
-                                choosePlayerArrow.transform.position = choosePlayerPos[0].transform.position;
-                                previousState = btlUIState.choosingSkillsCommand;
-                                currentState = btlUIState.choosingPlayer;
-                                break;
-                            case (float)SKILL_TYPE.ALL_PLAYER_HEAL:
-                                for (int i = 0; i < choosePlayerArrowForSelectAll.Length; i++)
-                                {
-                                    if (btlManager.players[i].playerReference != null)
-                                    {
-                                        if (!btlManager.players[i].playerReference.dead)
-                                        {
-                                            choosePlayerArrowForSelectAll[i].gameObject.SetActive(true);
-                                        }
-                                    }
-                                }
-                                previousState = btlUIState.choosingSkillsCommand;
-                                currentState = btlUIState.choosingAllPlayers;
-                                break;
-                            case (float)SKILL_TYPE.SINGLE_PLAYER_BUFF:
-                                choosePlayerArrow.gameObject.SetActive(true);
-                                playerIndicatorIndex = 0;
-                                choosePlayerArrow.transform.position = choosePlayerPos[0].transform.position;
-                                previousState = btlUIState.choosingSkillsCommand;
-                                currentState = btlUIState.choosingPlayer;
-                                break;
-                            case (float)SKILL_TYPE.ALL_PLAYER_BUFF:
-                                for (int i = 0; i < choosePlayerArrowForSelectAll.Length; i++)
-                                {
-                                    if (btlManager.players[i].playerReference != null)
-                                    {
-                                        if (!btlManager.players[i].playerReference.dead)
-                                        {
-                                            choosePlayerArrowForSelectAll[i].gameObject.SetActive(true);
-                                        }
-                                    }
-                                }
-                                previousState = btlUIState.choosingSkillsCommand;
-                                currentState = btlUIState.choosingAllPlayers;
-                                break;
+                            UpdateActivityText(skills.SkillName(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator]));
+                            playerInControl.UseSkillOnOnePlayer(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator],
+                                                               skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[5],
+                                                               skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[2],
+                                                               playerInControl);
                         }
+                        else
+                        {
+                            switch (skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[4])
+                            {
+                                case (float)SKILL_TYPE.SINGLE_TARGET_ATK:
+                                    MoveEnemyIndicatorToFirstAliveEnemy();
+                                    chooseEnemyArrow.SetActive(true);
+                                    activeRange = playerInControl.range;
+                                    previousState = btlUIState.choosingSkillsCommand;
+                                    currentState = btlUIState.choosingEnemy;
+                                    break;
+                                case (float)SKILL_TYPE.SINGLE_TARGET_DEBUFF:
+                                    MoveEnemyIndicatorToFirstAliveEnemy();
+                                    chooseEnemyArrow.SetActive(true);
+                                    previousState = btlUIState.choosingSkillsCommand;
+                                    currentState = btlUIState.choosingEnemy;
+                                    break;
+                                case (float)SKILL_TYPE.ALL_TARGETS_ATK:
+                                    //Activate the indicators for alive enemies only
+                                    for (int i = 0; i < enemiesDead.Length; i++)
+                                    {
+                                        if (enemiesDead[i] == false && btlManager.enemies[i].enemyReference != null)
+                                        {
+                                            chooseEnemyArrowForSelectAll[i].gameObject.SetActive(true);
+                                        }
+                                    }
+                                    previousState = btlUIState.choosingSkillsCommand;
+                                    currentState = btlUIState.choosingAllEnemies;
+                                    break;
+                                case (float)SKILL_TYPE.ALL_TARGETS_DEBUFF:
+                                    break;
+                                case (float)SKILL_TYPE.FULL_ROW_ATK:
+                                    if (!enemiesDead[0] || !enemiesDead[1] || !enemiesDead[2]) //Check if there are any enemies alive in the first row
+                                    {
+                                        chooseEnemyRowIndicator = 0; //Enemy row indicator goes to the first row where at least an enemy is alive
+
+                                        for (int i = 0; i < 3; i++) //Check which enemies are actually alive in the first row, and activate their indicators
+                                        {
+                                            if (enemiesDead[i] == false && btlManager.enemies[i].enemyReference != null)
+                                            {
+                                                chooseEnemyArrowForSelectAll[i].gameObject.SetActive(true);
+                                            }
+                                        }
+
+                                    }
+                                    else if (!enemiesDead[3] || !enemiesDead[4]) //Check for the ranged row
+                                    {
+                                        chooseEnemyRowIndicator = 1; //Enemy row indicator goes to the first row where at least an enemy is alive
+
+                                        for (int i = 3; i < 5; i++) //Check which enemies are actually alive in the ranged row, and activate their indicators
+                                        {
+                                            if (enemiesDead[i] == false && btlManager.enemies[i].enemyReference != null)
+                                            {
+                                                chooseEnemyArrowForSelectAll[i].gameObject.SetActive(true);
+                                            }
+                                        }
+                                    }
+                                    previousState = btlUIState.choosingSkillsCommand;
+                                    currentState = btlUIState.choosingRowOfEnemies;
+                                    break;
+                                case (float)SKILL_TYPE.FULL_ROW_DEBUFF:
+                                    break;
+                                case (float)SKILL_TYPE.SINGLE_PLAYER_HEAL:
+                                    choosePlayerArrow.gameObject.SetActive(true);
+                                    playerIndicatorIndex = 0;
+                                    choosePlayerArrow.transform.position = choosePlayerPos[0].transform.position;
+                                    previousState = btlUIState.choosingSkillsCommand;
+                                    currentState = btlUIState.choosingPlayer;
+                                    break;
+                                case (float)SKILL_TYPE.ALL_PLAYER_HEAL:
+                                    for (int i = 0; i < choosePlayerArrowForSelectAll.Length; i++)
+                                    {
+                                        if (btlManager.players[i].playerReference != null)
+                                        {
+                                            if (!btlManager.players[i].playerReference.dead)
+                                            {
+                                                choosePlayerArrowForSelectAll[i].gameObject.SetActive(true);
+                                            }
+                                        }
+                                    }
+                                    previousState = btlUIState.choosingSkillsCommand;
+                                    currentState = btlUIState.choosingAllPlayers;
+                                    break;
+                                case (float)SKILL_TYPE.SINGLE_PLAYER_BUFF:
+                                    choosePlayerArrow.gameObject.SetActive(true);
+                                    playerIndicatorIndex = 0;
+                                    choosePlayerArrow.transform.position = choosePlayerPos[0].transform.position;
+                                    previousState = btlUIState.choosingSkillsCommand;
+                                    currentState = btlUIState.choosingPlayer;
+                                    break;
+                                case (float)SKILL_TYPE.ALL_PLAYER_BUFF:
+                                    for (int i = 0; i < choosePlayerArrowForSelectAll.Length; i++)
+                                    {
+                                        if (btlManager.players[i].playerReference != null)
+                                        {
+                                            if (!btlManager.players[i].playerReference.dead)
+                                            {
+                                                choosePlayerArrowForSelectAll[i].gameObject.SetActive(true);
+                                            }
+                                        }
+                                    }
+                                    previousState = btlUIState.choosingSkillsCommand;
+                                    currentState = btlUIState.choosingAllPlayers;
+                                    break;
+                            }
+                        }
+                    }
+                }
+                else //Mana charge checks for HP not for MP
+                {
+                    if(playerInControl.currentHP > skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[5])
+                    {
+                        skillsPanel.gameObject.SetActive(false);
+                        controlsPanel.gameObject.SetActive(false);
+                        choosePlayerArrow.gameObject.SetActive(true);
+                        playerIndicatorIndex = 0;
+                        choosePlayerArrow.transform.position = choosePlayerPos[0].transform.position;
+                        previousState = btlUIState.choosingSkillsCommand;
+                        currentState = btlUIState.choosingPlayer;
                     }
                 }
             }
@@ -1036,6 +1090,7 @@ public class UIBTL : MonoBehaviour
     {
         if (Input.GetButtonDown("Cancel"))
         {
+            audioManager.PlayThisEffect("uiCancel");
             itemsPanel.gameObject.SetActive(false);
             controlsPanel.gameObject.SetActive(true);
             controlsIndicator = 3; //Back to items in the choosingbasicommands
@@ -1044,6 +1099,7 @@ public class UIBTL : MonoBehaviour
         }
         else if (Input.GetButtonDown("Confirm") && inventory.invItem[inventory.consumableInv[itemsPanelIndex], 1] > 0)//Player has chosen an item
         {
+            audioManager.PlayThisEffect("uiConfirm");
             //Make sure you choose an item that is usable and not equipable
             previousState = btlUIState.choosingItemsCommand; //Needed to know what to reference when choosing the player
             choosePlayerArrow.transform.position = choosePlayerPos[0].transform.position; //Move the player indicator on top of Fargas for now
@@ -1055,7 +1111,7 @@ public class UIBTL : MonoBehaviour
         }
         else if (Input.GetKeyDown(KeyCode.DownArrow) && itemsPanelIndex < inventory.consumableInv.Count)
         {
-
+            audioManager.PlayThisEffect("uiScroll");
             //Keep track of where the highlighter is
             if (itemsPanelIndex + 1 < inventory.consumableInv.Count)
             {
@@ -1118,6 +1174,7 @@ public class UIBTL : MonoBehaviour
         }
         else if (Input.GetKeyDown(KeyCode.UpArrow) && itemsPanelIndex > 0)
         {
+            audioManager.PlayThisEffect("uiScroll");
             if (itemsPanelIndex - 1 >= 0)
             {
                 itemHPosIndex--;
@@ -1175,6 +1232,7 @@ public class UIBTL : MonoBehaviour
     {
         if (Input.GetButtonDown("Cancel"))
         {
+            audioManager.PlayThisEffect("uiCancel");
             choosePlayerArrow.gameObject.SetActive(false);
             switch (playerInControl.playerIndex)
             {
@@ -1208,12 +1266,14 @@ public class UIBTL : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
             {
+                audioManager.PlayThisEffect("uiScroll");
                 playerIndicatorIndex = 1;//Go to Oberon
                 choosePlayerArrow.transform.position = choosePlayerPos[1].transform.position;
 
             }
             else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
             {
+                audioManager.PlayThisEffect("uiScroll");
                 playerIndicatorIndex = 3;//Go to Arcelus
                 choosePlayerArrow.transform.position = choosePlayerPos[3].transform.position;
             }
@@ -1223,12 +1283,14 @@ public class UIBTL : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
             {
+                audioManager.PlayThisEffect("uiScroll");
                 playerIndicatorIndex = 0;//Go to Fargas
                 choosePlayerArrow.transform.position = choosePlayerPos[0].transform.position;
 
             }
             else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
             {
+                audioManager.PlayThisEffect("uiScroll");
                 playerIndicatorIndex = 2;//Go to Frea
                 choosePlayerArrow.transform.position = choosePlayerPos[2].transform.position;
             }
@@ -1237,12 +1299,14 @@ public class UIBTL : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
             {
+                audioManager.PlayThisEffect("uiScroll");
                 playerIndicatorIndex = 3;//Go to Arcelus
                 choosePlayerArrow.transform.position = choosePlayerPos[3].transform.position;
 
             }
             else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
             {
+                audioManager.PlayThisEffect("uiScroll");
                 playerIndicatorIndex = 1;//Go to Oberon
                 choosePlayerArrow.transform.position = choosePlayerPos[1].transform.position;
             }
@@ -1251,12 +1315,14 @@ public class UIBTL : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.UpArrow))
             {
+                audioManager.PlayThisEffect("uiScroll");
                 playerIndicatorIndex = 2;//Go to Frea
                 choosePlayerArrow.transform.position = choosePlayerPos[2].transform.position;
 
             }
             else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
             {
+                audioManager.PlayThisEffect("uiScroll");
                 playerIndicatorIndex = 0;//Go to Fargas
                 choosePlayerArrow.transform.position = choosePlayerPos[0].transform.position;
             }
@@ -1264,7 +1330,7 @@ public class UIBTL : MonoBehaviour
 
         if (Input.GetButtonDown("Confirm"))
         {
-
+            audioManager.PlayThisEffect("uiConfirm");
             if (previousState == btlUIState.choosingItemsCommand)
             {
                 //Make sure you're not using the hope potion, the player you're targeting is not dead and is not in RAGE
@@ -1358,7 +1424,12 @@ public class UIBTL : MonoBehaviour
                                                                     skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[5],
                                                                     skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[2],
                                                                     btlManager.players[playerIndicatorIndex].playerReference);
-                                 }
+
+                                if (skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[2] <= 0)
+                                {
+                                    currentState = btlUIState.idle; //Prevent sound from repeating // Needed for skills with no waiting time. Those with waiting time end their turns on their own
+                                }
+                            }
                             }
                         }
                         else //If the skill is indeed Lullaby Of Hope, then make sure you target a dead ally
@@ -1375,6 +1446,7 @@ public class UIBTL : MonoBehaviour
                         }
                     }
 
+                
             }
         }
     }
@@ -1383,6 +1455,7 @@ public class UIBTL : MonoBehaviour
     {
         if (Input.GetButtonDown("Cancel"))
         {
+            audioManager.PlayThisEffect("uiCancel");
             if (previousState == btlUIState.choosingBasicCommand)
             {
                 controlsPanel.gameObject.SetActive(true);
@@ -1402,6 +1475,7 @@ public class UIBTL : MonoBehaviour
         }
         else if (Input.GetButtonDown("Confirm"))
         {
+            audioManager.PlayThisEffect("uiConfirm");
             UpdateActivityText(skills.SkillName(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator]));
             playerInControl.UseSkillOnAllPlayers(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator],
                                     skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[5],
@@ -1419,6 +1493,7 @@ public class UIBTL : MonoBehaviour
         //Leave choosing enemy
         if (Input.GetButtonDown("Cancel"))
         {
+            audioManager.PlayThisEffect("uiCancel");
             chooseEnemyArrow.gameObject.SetActive(false);
             if (previousState == btlUIState.choosingBasicCommand)
             {
@@ -1439,6 +1514,7 @@ public class UIBTL : MonoBehaviour
             case 0:
                 if (Input.GetKeyDown(KeyCode.DownArrow))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[1] != null && enemiesDead[1] == false)
                     {
                         enemyIndicatorIndex = 1;
@@ -1447,6 +1523,7 @@ public class UIBTL : MonoBehaviour
                 }
                 else if ((Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow)) && (activeRange + playerInControl.initialPos >= 2))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[3] != null && enemiesDead[3] == false)
                     {
                         enemyIndicatorIndex = 3;
@@ -1460,6 +1537,7 @@ public class UIBTL : MonoBehaviour
                 }
                 else if (Input.GetKeyDown(KeyCode.UpArrow))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[2] != null && enemiesDead[2] == false)
                     {
                         enemyIndicatorIndex = 2;
@@ -1470,6 +1548,7 @@ public class UIBTL : MonoBehaviour
             case 1:
                 if (Input.GetKeyDown(KeyCode.DownArrow))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[2] != null && enemiesDead[2] == false)
                     {
                         enemyIndicatorIndex = 2;
@@ -1478,6 +1557,7 @@ public class UIBTL : MonoBehaviour
                 }
                 else if ((Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow)) && (activeRange + playerInControl.initialPos >= 2))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[3] != null && enemiesDead[3] == false)
                     {
                         enemyIndicatorIndex = 3;
@@ -1491,6 +1571,7 @@ public class UIBTL : MonoBehaviour
                 }
                 else if (Input.GetKeyDown(KeyCode.UpArrow))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[0] != null && enemiesDead[0] == false)
                     {
                         enemyIndicatorIndex = 0;
@@ -1501,6 +1582,7 @@ public class UIBTL : MonoBehaviour
             case 2:
                 if (Input.GetKeyDown(KeyCode.DownArrow))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[0] != null && enemiesDead[0] == false)
                     {
                         enemyIndicatorIndex = 0;
@@ -1509,6 +1591,7 @@ public class UIBTL : MonoBehaviour
                 }
                 else if ((Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow)) && (activeRange + playerInControl.initialPos >= 2))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[3] != null && enemiesDead[3] == false)
                     {
                         enemyIndicatorIndex = 3;
@@ -1522,6 +1605,7 @@ public class UIBTL : MonoBehaviour
                 }
                 else if (Input.GetKeyDown(KeyCode.UpArrow))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[1] != null && enemiesDead[1] == false)
                     {
                         enemyIndicatorIndex = 1;
@@ -1532,6 +1616,7 @@ public class UIBTL : MonoBehaviour
             case 3:
                 if (Input.GetKeyDown(KeyCode.DownArrow))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[4] != null && enemiesDead[4] == false)
                     {
                         enemyIndicatorIndex = 4;
@@ -1540,6 +1625,7 @@ public class UIBTL : MonoBehaviour
                 }
                 else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[0] != null && enemiesDead[0] == false)
                     {
                         enemyIndicatorIndex = 0;
@@ -1548,6 +1634,7 @@ public class UIBTL : MonoBehaviour
                 }
                 else if (Input.GetKeyDown(KeyCode.UpArrow))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[4] != null && enemiesDead[4] == false)
                     {
                         enemyIndicatorIndex = 4;
@@ -1558,6 +1645,7 @@ public class UIBTL : MonoBehaviour
             case 4:
                 if (Input.GetKeyDown(KeyCode.DownArrow))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[3] != null && enemiesDead[3] == false)
                     {
                         enemyIndicatorIndex = 3;
@@ -1566,6 +1654,7 @@ public class UIBTL : MonoBehaviour
                 }
                 else if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[0] != null && enemiesDead[0] == false)
                     {
                         enemyIndicatorIndex = 0;
@@ -1584,6 +1673,7 @@ public class UIBTL : MonoBehaviour
                 }
                 else if (Input.GetKeyDown(KeyCode.UpArrow))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     if (enemies[3] != null && enemiesDead[3] == false)
                     {
                         enemyIndicatorIndex = 3;
@@ -1595,9 +1685,11 @@ public class UIBTL : MonoBehaviour
 
         if (Input.GetButtonDown("Confirm"))
         {
+            audioManager.PlayThisEffect("uiConfirm");
             chooseEnemyArrow.gameObject.SetActive(false);
             if (previousState == btlUIState.choosingBasicCommand)
             {
+                currentState = btlUIState.idle;
                 UpdateActivityText("Attack");
                 playerInControl.Attack(enemies[enemyIndicatorIndex]);
             }
@@ -1613,9 +1705,12 @@ public class UIBTL : MonoBehaviour
                                                    skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[2],
                                                    enemies[enemyIndicatorIndex]);
 
+                    //Debug.Log("WWWHHHHAAAAAAAAAAAAAAAAAAAAAA " + controlsIndicator);
                     if(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator] == (int)SKILLS.Fr_DoubleShot || //Ignore input from the player after choosing an enemy for these two skills to avoid the machine gun bug
-                        PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator] == (int)SKILLS.Fr_BleedingEdge)
+                        PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator] == (int)SKILLS.Fr_BleedingEdge ||
+                        PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator] == (int)SKILLS.Fa_SwordOfFury) //Also prevents sound from repeating
                     {
+                       // Debug.Log("This happened");
                         currentState = btlUIState.idle;
                     }
                 }
@@ -1637,6 +1732,7 @@ public class UIBTL : MonoBehaviour
     {
         if (Input.GetButtonDown("Cancel"))
         {
+            audioManager.PlayThisEffect("uiCancel");
             DisableActivtyText();
             if (previousState == btlUIState.choosingBasicCommand)
             {
@@ -1657,6 +1753,7 @@ public class UIBTL : MonoBehaviour
         }
         else if (Input.GetButtonDown("Confirm"))
         {
+            audioManager.PlayThisEffect("uiConfirm");
             UpdateActivityText(skills.SkillName(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator]));
             playerInControl.UseSkillOnAllEnemies(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator],
                                                skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[5],
@@ -1673,6 +1770,7 @@ public class UIBTL : MonoBehaviour
     {
         if (Input.GetButtonDown("Cancel"))
         {
+            audioManager.PlayThisEffect("uiCancel");
             DisableActivtyText();
             if (previousState == btlUIState.choosingBasicCommand)
             {
@@ -1697,6 +1795,7 @@ public class UIBTL : MonoBehaviour
             case 0:
                 if ((Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow)) && (numberOfEnemies >= 4 && (!enemiesDead[3] || !enemiesDead[4])))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     chooseEnemyRowIndicator++; //Move row indicator to the ranged row
 
                     for (int i = 0; i < 3; i++)  //Turn off the indicators for the front row
@@ -1717,6 +1816,7 @@ public class UIBTL : MonoBehaviour
             case 1:
                 if ((Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow)) && (!enemiesDead[0] || !enemiesDead[1] || !enemiesDead[2]))
                 {
+                    audioManager.PlayThisEffect("uiScroll");
                     chooseEnemyRowIndicator--; //Move row indicator to the front row
 
                     for (int i = 3; i < 5; i++)  //Turn off the indicators for the ranged row
@@ -1738,6 +1838,7 @@ public class UIBTL : MonoBehaviour
 
         if (Input.GetButtonDown("Confirm"))
         {
+            audioManager.PlayThisEffect("uiConfirm");
             //Call the row function
             playerInControl.UseSkillOnEnemyRow(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator],
                                     skills.SkillStats(PartySkills.skills[playerInControl.playerIndex].equippedSkills[controlsIndicator])[5],
@@ -1802,7 +1903,6 @@ public class UIBTL : MonoBehaviour
                 controlsPanel.gameObject.SetActive(false);
                 itemsPanel.gameObject.SetActive(false);
                 firstTimeOpenedSkillsPanel = false; //Get ready for the next player in case they want to use thier skills
-                controlsIndicator = 0;
                 highlighter.gameObject.transform.position = highlighiterPos[0].transform.position;
                 numberOfEndTurnCalls = 0;
                 playerInControl.ForcePlayerTurnAnimationOff();

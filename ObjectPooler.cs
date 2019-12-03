@@ -74,7 +74,6 @@ public class ObjectPooler : MonoBehaviour
 
     public GameObject SpawnFromPool(string tag,Vector3 position, Quaternion rotation)
     {
-        Debug.Log("Summon demo attack");
         if (poolDictionary.ContainsKey(tag))
         {
 

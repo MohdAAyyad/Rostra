@@ -63,8 +63,6 @@ public class BattleManager : MonoBehaviour
     public bool battleHasEnded;
     public static bool battleInProgress = false;
 
-    private float dummyTimer = 5.0f;
-
     //At the beginning of each battle, each player and enemy will use the singleton to update their stats
     #region singleton
 
@@ -413,7 +411,6 @@ public class BattleManager : MonoBehaviour
     public virtual void EndOfBattle(bool victory)
     {
         battleHasEnded = true;
-        battleInProgress = false;
         if (victory)
         { //Only if it's a victory, update the party stats
             for (int i = 0; i < 4; i++)
@@ -469,6 +466,9 @@ public class BattleManager : MonoBehaviour
         //Update the needed exp for next levelup
         players[playerIndex].expNeededForNextLevel = PartyStats.chara[playerIndex].neededExperience;
         //Debug.Log("You need this much to level up again! " + players[playerIndex].expNeededForNextLevel);
+        //Refill the players HP and MP
+        PartyStats.chara[playerIndex].magicpoints = PartyStats.chara[playerIndex].maxMana; 
+        PartyStats.chara[playerIndex].hitpoints = PartyStats.chara[playerIndex].maxHealth;
     }
 
     public virtual void UpdatePlayerStats(int playerIndex)

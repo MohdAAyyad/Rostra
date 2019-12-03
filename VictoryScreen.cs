@@ -260,6 +260,7 @@ public class VictoryScreen : MonoBehaviour
             }
             else if (Input.GetButtonDown("Confirm") && !fargasAddinExp && !startFadingFargasIn && !freaAddinExp && !startFadingFreaIn && !oberonAddinExp && !startFadingOberonIn && !arcelusAddinExp && !startFadingArcelusIn && !initiatedFadeOut)
             {
+                BattleManager.battleInProgress = false; //Only flip the variable when the victory/defeat screen is over.
                 initiatedFadeOut = true;
                 fadePanelToWorldMap.TransitionBackToWorldMapFromBattle();
             }
@@ -420,18 +421,34 @@ public class VictoryScreen : MonoBehaviour
                     case 0:
                         fargasLevelUpBack.gameObject.SetActive(true);
                         fargasLevelUpFore.gameObject.SetActive(true);
+                        fargasMP.fillAmount = 1.0f; //HP and MP are filled on level up
+                        fargasHP.fillAmount = 1.0f;
+                        fargasCurrentHPText.text = fargasMaxHPText.text + " / ";
+                        fargasCurrentMPText.text = fargasMaxMPText.text + " / ";
                         break;
                     case 1:
                         oberonLevelUpBack.gameObject.SetActive(true);
                         oberonLevelUpFore.gameObject.SetActive(true);
+                        oberonMP.fillAmount = 1.0f;
+                        oberonHP.fillAmount = 1.0f;
+                        oberonCurrentHPText.text = oberonMaxHPText.text + " / ";
+                        oberonCurrentMPText.text = oberonMaxMPText.text + " / ";
                         break;
                     case 2:
                         freaLevelUpBack.gameObject.SetActive(true);
                         freaLevelUpFore.gameObject.SetActive(true);
+                        freaMP.fillAmount = 1.0f;
+                        freaHP.fillAmount = 1.0f;
+                        freaCurrentHPText.text = freaMaxHPText.text + " / ";
+                        freaCurrentMPText.text = freaMaxMPText.text + " / ";
                         break;
                     case 3:
                         arcelusLevelUpBack.gameObject.SetActive(true);
                         arcelusLevelUpFore.gameObject.SetActive(true);
+                        arcelusMP.fillAmount = 1.0f;
+                        arcelusHP.fillAmount = 1.0f;
+                        arcelusCurrentHPText.text = arcelusMaxHPText.text + " / ";
+                        arcelusCurrentMPText.text = arcelusMaxMPText.text + " / ";
                         break;
                 }
 

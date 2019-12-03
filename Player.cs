@@ -18,6 +18,10 @@ public class Player : MonoBehaviour
     private UIBTL uiBTL;
     private ObjectPooler objPooler;
     private SkillsInventory skills;
+    private AudioManager audioManager;
+
+    //Audio
+    private string audioForSkillEffectName = ""; //Used to know what sound to play for each skill
 
     //Player stats
     public float atk;
@@ -214,6 +218,7 @@ public class Player : MonoBehaviour
         uiBTL = UIBTL.instance;
         objPooler = ObjectPooler.instance;
         skills = SkillsInventory.invInstance;
+        audioManager = AudioManager.instance;
 
         //States
         currentState = playerState.Idle;
@@ -443,12 +448,22 @@ public class Player : MonoBehaviour
             if (chosenSkill != (int)SKILLS.Fr_BleedingEdge)
             {
                 objPooler.SpawnFromPool("PlayerNormalAttack", attackingThisEnemy.gameObject.transform.position, gameObject.transform.rotation);
+                if(playerIndex == 2) //Frea has a bow sound
+                {
+                    audioManager.PlayThisEffect("doubleShot");
+                }
+                else
+                {
+                    audioManager.PlayThisEffect("attack");
+                }
             }
             else
             {
+
                 //Summon the BE effects 
                 objPooler.SpawnFromPool("BleedingEdgeEffect", gameObject.transform.position, gameObject.transform.rotation);
                 objPooler.SpawnFromPool("BleedingEdgeImpact", attackingThisEnemy.gameObject.transform.position, gameObject.transform.rotation);
+                audioManager.PlayThisEffect("bleedingEdge");
             }
             //Shake the camera
             btlCam.CameraShake();
@@ -598,6 +613,7 @@ public class Player : MonoBehaviour
     //Guard and End Guard are called from the UI. End Guard is called when the player's turn returns
     public void Guard()
     {
+        audioManager.PlayThisEffect("guard");
         actualDefBeforeGuard = actualDEF; //Store the current defense before multiplying it
         actualDEF = actualDefBeforeGuard * 1.5f;
         currentState = playerState.Guard;
@@ -856,18 +872,21 @@ public class Player : MonoBehaviour
         //Check if the skill is immediate or if the player needs to wait a number of turns
         if (skillID == (int)SKILLS.Ar_Heal) //Heal
         {
+            audioForSkillEffectName = "heal";
             skillTarget = 6;//Single player heal
             skillAnimatorName = "Heal";
             skillWaitingIndex = 1;
         }
         else if(skillID == (int)SKILLS.Ar_ManaCharge)
         {
+            audioForSkillEffectName = "manaCharge";
             skillTarget = 6;//Single player heal
-            skillAnimatorName = "Heal";
+            skillAnimatorName = "ManaCharge";
             skillWaitingIndex = 2; //Mana heal wait is 2 per the animator
         }
         else if(skillID == (int)SKILLS.Ar_LullabyOfHope)
         {
+            audioForSkillEffectName = "hope";
             skillTarget = 6;//Single player heal
             skillAnimatorName = "Heal";
             skillWaitingIndex = 3; //Lullaby of Hope wait is 3 per the animator
@@ -875,18 +894,21 @@ public class Player : MonoBehaviour
         }
         else if(skillID == (int)SKILLS.Ar_DrainEye)
         {
+            audioForSkillEffectName = "drainEye";
             skillTarget = 8; //Single player buff
             skillAnimatorName = "DrainEye";
             skillWaitingIndex = 1; //No wait for draineye
         }
         else if (skillID == (int)SKILLS.Ob_ShieldAlly) //Buff defense skill
         {
+            audioForSkillEffectName = "buff";
             skillTarget = 8; //Single player buff
             skillAnimatorName = "BuffDef2";
             skillWaitingIndex = 0;
         }
         else if (skillID == (int)SKILLS.Ob_LionsPride) //Lion's Pride special skill
         {
+            audioManager.PlayThisEffect("lionsPride");
             lionsPrideIsActive = true;
             lionsPrideSymbolOberonOnly.gameObject.SetActive(true);
             lionsPrideSkillQCounter = 3; //Lions pride counter is different than the defense buff/debuff counter as the defense can be buffed or debuff further on but lion's pride will always only last for three turns
@@ -904,6 +926,7 @@ public class Player : MonoBehaviour
         else if (skillID == (int)SKILLS.Fr_IDontMiss) //I Don't Miss special skill
         {
             skillTarget = 8; //Single player buff
+            audioManager.PlayThisEffect("buff");
             BuffStats("Strength", skills.SkillStats(chosenSkill)[0], 3);
             chosenSkill = (int)SKILLS.NO_SKILL;
             currentMP -= mpCost;
@@ -927,6 +950,23 @@ public class Player : MonoBehaviour
         }
         else
         {
+            if (playerIndex == 0)
+            {
+                audioManager.PlayThisEffect("faWait");
+            }
+            else if (playerIndex == 1)
+            {
+                audioManager.PlayThisEffect("obWait");
+            }
+            else if (playerIndex == 2)
+            {
+                audioManager.PlayThisEffect("frWait");
+            }
+            else if (playerIndex == 3)
+            {
+                audioManager.PlayThisEffect("arWait");
+            }
+
             waitTimeText.gameObject.SetActive(true);
             waitTimeText.text = skillWaitTime.ToString();
             playerAnimator.SetInteger("WaitingIndex", skillWaitingIndex);
@@ -945,18 +985,21 @@ public class Player : MonoBehaviour
         //Check if the skill is immediate or if the player needs to wait a number of turns
         if (skillID == (int)SKILLS.Ar_HealingAura) //Heal 
         {
+            audioForSkillEffectName = "heal";
             skillTarget = 7;//All player heal
             skillAnimatorName = "Heal";
             skillWaitingIndex = 1;
         }
         else if (skillID == (int)SKILLS.Ob_ShieldAllAllies) //Buff defense skill
         {
+            audioForSkillEffectName = "buff";
             skillTarget = 9; //All player buff
             skillAnimatorName = "BuffDef";
             skillWaitingIndex = 1;
         }
         else if(skillID == (int)SKILLS.Ob_Lutenist)
         {
+            audioForSkillEffectName = "lutenist";
             skillTarget = 9;
             skillNameForObjPooler = "LutenistEffect";
             skillAnimatorName = "BuffDef";
@@ -965,6 +1008,7 @@ public class Player : MonoBehaviour
         }
         else if(skillID == (int)SKILLS.Fa_WarCry)
         {
+            audioForSkillEffectName = "buff";
             skillTarget = 9; //All player buff
             skillAnimatorName = "ASkill";
             skillWaitingIndex = 3;
@@ -979,7 +1023,22 @@ public class Player : MonoBehaviour
         }
         else
         {
-            //Debug.Log("Now");
+            if (playerIndex == 0)
+            {
+                audioManager.PlayThisEffect("faWait");
+            }
+            else if (playerIndex == 1)
+            {
+                audioManager.PlayThisEffect("obWait");
+            }
+            else if (playerIndex == 2)
+            {
+                audioManager.PlayThisEffect("frWait");
+            }
+            else if (playerIndex == 3)
+            {
+                audioManager.PlayThisEffect("arWait");
+            }
             waitTimeText.gameObject.SetActive(true);
             waitTimeText.text = skillWaitTime.ToString();
             playerAnimator.SetInteger("WaitingIndex", skillWaitingIndex);
@@ -1021,23 +1080,28 @@ public class Player : MonoBehaviour
                 PartyStats.chara[playerIndex].magicpoints = currentMP;
                 break;
             case (int)SKILLS.Fr_PiercingShot:
+                audioForSkillEffectName = "piercingShot";
                 skillNameForObjPooler = "FFSkill1";
                 skillAnimatorName = "ASkill";
                 skillWaitingIndex = 1; //Should there be waiting time, this index is used to know which waiting animation to go to
+                Debug.Log("Wait time is: " + skillWaitTime);
                 break;
             case (int)SKILLS.Fa_SwordOfFury:
+                audioForSkillEffectName = "swordOfFury";
                 skillTarget = 0;
                 skillNameForObjPooler = "SoFSkill";
                 skillAnimatorName = "Fury";
                 skillWaitingIndex = 0; //Should there be waiting time, this index is used to know which waiting animation to go to
                 break;
             case (int)SKILLS.Fa_Sunguard:
+                audioForSkillEffectName = "sunguard";
                 skillTarget = 0;
                 skillNameForObjPooler = "Sun";
                 skillAnimatorName = "ASkill";
                 skillWaitingIndex = 4; //Should there be waiting time, this index is used to know which waiting animation to go to
                 break;
             case (int)SKILLS.Fa_Rally:
+                audioForSkillEffectName = "rally";
                 skillTextValue = "Rally to me!";
                 skillTarget = 0;
                 skillNameForObjPooler = "Rally";
@@ -1055,6 +1119,23 @@ public class Player : MonoBehaviour
         }
         else
         {
+            if (playerIndex == 0)
+            {
+                audioManager.PlayThisEffect("faWait");
+            }
+            else if (playerIndex == 1)
+            {
+                audioManager.PlayThisEffect("obWait");
+            }
+            else if (playerIndex == 2)
+            {
+                audioManager.PlayThisEffect("frWait");
+            }
+            else if (playerIndex == 3)
+            {
+                audioManager.PlayThisEffect("arWait");
+            }
+
             //If there's waiting time, go to wait state and end the turn 
             waitTimeText.gameObject.SetActive(true);
             waitTimeText.text = skillWaitTime.ToString();
@@ -1077,12 +1158,14 @@ public class Player : MonoBehaviour
         switch (skillID)
         {
             case (int)SKILLS.Fr_ArrowRain:
+                audioForSkillEffectName = "arrowRain";
                 skillObjectForObjPooler = "ArrowRain";
                 skillNameForObjPooler = "ArrowImpact";
                 skillAnimatorName = "ASkill";
                 skillWaitingIndex = 1;
                 break;
             case (int)SKILLS.Fr_NeverAgain:
+                audioForSkillEffectName = "neverAgain";
                 skillObjectForObjPooler = "NeverAgain";
                 skillNameForObjPooler = "ArrowImpactNG";
                 skillAnimatorName = "ASkill";
@@ -1090,6 +1173,7 @@ public class Player : MonoBehaviour
                 skillWaitingIndex = -2;
                 break;
             case (int)SKILLS.Ar_Armageddon:
+                audioForSkillEffectName = "armageddon";
                 skillObjectForObjPooler = "ArmFire";
                 skillNameForObjPooler = "ArmImpact";
                 skillAnimatorName = "Heal";
@@ -1097,6 +1181,7 @@ public class Player : MonoBehaviour
                 skillWaitingIndex = 4; //Armageddon is 4
                 break;
             case (int)SKILLS.Fa_BladeOfTheFallen:
+                audioForSkillEffectName = "bladeOfTheFallen";
                 skillObjectForObjPooler = "";
                 skillNameForObjPooler = "BoFImpact";
                 skillAnimatorName = "ASkill";
@@ -1104,6 +1189,7 @@ public class Player : MonoBehaviour
                 skillWaitingIndex = 5; //BoF is 5
                 break;
             case (int)SKILLS.Ob_FierceStrike:
+                audioForSkillEffectName = "fierceStrike";
                 skillObjectForObjPooler = "";
                 skillNameForObjPooler = "FierceStrike";
                 skillAnimatorName = "BuffDef";
@@ -1120,6 +1206,23 @@ public class Player : MonoBehaviour
         }
         else
         {
+            if(playerIndex == 0)
+            {
+                audioManager.PlayThisEffect("faWait");
+            }
+            else if (playerIndex == 1)
+            {
+                audioManager.PlayThisEffect("obWait");
+            }
+            else if (playerIndex == 2)
+            {
+                audioManager.PlayThisEffect("frWait");
+            }
+            else if (playerIndex == 3)
+            {
+                audioManager.PlayThisEffect("arWait");
+            }
+
             //If there's waiting time, go to wait state and end the turn 
             waitTimeText.gameObject.SetActive(true);
             waitTimeText.text = skillWaitTime.ToString();
@@ -1140,6 +1243,7 @@ public class Player : MonoBehaviour
         //Check which skill to know which animation to run
         if (skillID == (int)SKILLS.Fa_SwiftStrike) 
         {
+            audioForSkillEffectName = "swiftStrike";
             skillNameForObjPooler = "FFSkill1";
             skillAnimatorName = "ASkill";
             skillWaitingIndex = 1;
@@ -1147,6 +1251,7 @@ public class Player : MonoBehaviour
 
         else if (skillID == (int)SKILLS.Ob_SpearDance)
         {
+            audioForSkillEffectName = "spearDance";
             skillNameForObjPooler = "SpearDance";
             skillAnimatorName = "BuffDef";
             skillWaitingIndex = 2; //2 is Spear Dance
@@ -1154,6 +1259,7 @@ public class Player : MonoBehaviour
 
         else if(skillID == (int)SKILLS.Ar_IceAge)
         {
+            audioForSkillEffectName = "iceAge";
             skillNameForObjPooler = "IceAge";
             skillAnimatorName = "Heal";
             skillWaitingIndex = 2; //Same animation as mana heal
@@ -1167,6 +1273,23 @@ public class Player : MonoBehaviour
         }
         else
         {
+            if (playerIndex == 0)
+            {
+                audioManager.PlayThisEffect("faWait");
+            }
+            else if (playerIndex == 1)
+            {
+                audioManager.PlayThisEffect("obWait");
+            }
+            else if (playerIndex == 2)
+            {
+                audioManager.PlayThisEffect("frWait");
+            }
+            else if (playerIndex == 3)
+            {
+                audioManager.PlayThisEffect("arWait");
+            }
+
             //If there's waiting time, go to wait state and end the turn 
             waitTimeText.gameObject.SetActive(true);
             waitTimeText.text = skillWaitTime.ToString();
@@ -1470,6 +1593,10 @@ public class Player : MonoBehaviour
                                     }
                                     else if (chosenSkill == (int)SKILLS.Ob_FierceStrike) //Fierce Strike is a revenge attack
                                     {
+                                        if(sustainedDamage<=0.0f)
+                                        {
+                                            sustainedDamage = -1.0f; //Force a miss in case sustained Damage is zero otherwise the enemy will never end the turn. Bad code I know, build is due in two days, can't change much now
+                                        }
                                         battleManager.enemies[i].enemyReference.TakeDamage(0.7f * sustainedDamage, numberOfAttacks); //Fierce strike returns all damage sustained
 
                                         if (drainEye) //Check if Drain Eye is active
@@ -1495,6 +1622,11 @@ public class Player : MonoBehaviour
                                     }
                                     else if (chosenSkill == (int)SKILLS.Ob_FierceStrike) //Fierce Strike is a revenge attack
                                     {
+                                        if (sustainedDamage <= 0.0f)
+                                        {
+                                            sustainedDamage = -1.0f; //Force a miss in case sustained Damage is zero otherwise the enemy will never end the turn. Bad code I know, build is due in two days, can't change much now
+                                        }
+
                                         battleManager.enemies[i].enemyReference.TakeDamage(0.5f * sustainedDamage, numberOfAttacks); //Fierce strike returns all damage sustained
 
                                         if (drainEye) //Check if Drain Eye is active
@@ -1532,16 +1664,25 @@ public class Player : MonoBehaviour
             {
                 if (chosenSkill == (int)SKILLS.Ar_Heal)
                 {
+                    
                     healThisPlayer.Heal(0.01f * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0])); //Passing in a percentage
                     playerAnimator.SetBool("Heal", false);
                 }
                 else if (chosenSkill == (int)SKILLS.Ar_ManaCharge)
                 {
+                    //Mana Charge costs HP not MP to use
                     healThisPlayer.ManaCharge(0.01f * (0.5f * actualATK + skills.SkillStats(chosenSkill)[0]));
-                    playerAnimator.SetBool("Heal", false);
+                    playerAnimator.SetBool("ManaCharge", false);
+                    currentHP -= mpCost;
+                    damageText.text = mpCost.ToString();
+                    damageText.gameObject.SetActive(true);
+                    hpImage.fillAmount = currentHP / maxHP;
+                    battleManager.players[playerIndex].currentHP = currentHP;
+                    PartyStats.chara[playerIndex].hitpoints = currentHP;
                 }
                 else if (chosenSkill == (int)SKILLS.Ar_LullabyOfHope)
                 {
+                    
                     healThisPlayer.RevivePlayer(0.5f); //Revive a player with half their HP
                     playerAnimator.SetBool("Heal", false);
                 }
@@ -1550,6 +1691,7 @@ public class Player : MonoBehaviour
             {
                 if (chosenSkill == (int)SKILLS.Ar_HealingAura)
                 {
+                    
                     for (int i = 0; i < battleManager.players.Length; i++)
                     {
                         if (battleManager.players[i].playerReference != null)
@@ -1642,18 +1784,25 @@ public class Player : MonoBehaviour
             }
 
             // ----- End of Skill Effect -----  //
-
+            if (audioForSkillEffectName != "")
+            {
+                audioManager.PlayThisEffect(audioForSkillEffectName);
+                audioForSkillEffectName = ""; //Reset, ready for the next effect
+            }
             if (chosenSkill == (int)SKILLS.Ob_SpearDance)
             {
                 actualCRIT = critBeforeDance; //Return the crit to what it was before using the skill
             }
             //Claculate the new MP and reset the player's state
             totalBoFAtkToBeAdded = 0;
+            if (chosenSkill != (int)SKILLS.Ar_ManaCharge) //Mana Charge costs HP not MP
+            {
+                currentMP -= mpCost;
+                mpImage.fillAmount = currentMP / maxMP;
+                battleManager.players[playerIndex].currentMP = currentMP;
+                PartyStats.chara[playerIndex].magicpoints = currentMP;
+            }
             chosenSkill = (int)SKILLS.NO_SKILL;
-            currentMP -= mpCost;
-            mpImage.fillAmount = currentMP / maxMP;
-            battleManager.players[playerIndex].currentMP = currentMP;
-            PartyStats.chara[playerIndex].magicpoints = currentMP;
             uiBTL.UpdatePlayerMPControlPanel();
             currentState = playerState.Idle;
         }
@@ -2080,24 +2229,28 @@ public class Player : MonoBehaviour
             actualATK = atk;
             attackBuffed = false;
             attackBuffSkillQCounter = 0;
+            atkBuffArrowIndicator.gameObject.SetActive(false);
         }
         if (defenseBuffed)
         {
             actualDEF = def;
             defenseBuffed = false;
             defenseBuffSkillQCounter = 0;
+            defBuffArrowIndicator.gameObject.SetActive(false);
         }
         if (agilityBuffed)
         {
             actualAgi = agi;
             agilityBuffed = false;
             agilityBuffSkillQCounter = 0;
+            agiBuffArrowIndicator.gameObject.SetActive(false);
         }
         if(strBuffed)
         {
             actualSTR = str;
             strBuffed = false;
             strBuffSkillQCounter = 0;
+            strBuffArrowIndicator.gameObject.SetActive(false);
         }
         if(drainEye)
         {

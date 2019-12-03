@@ -19,7 +19,8 @@ public class MainMenu : MonoBehaviour
     {
         main,
         howToPlay,
-        controls
+        controls,
+        contactUs
     };
     private MainMenuState currentState;
 
@@ -30,9 +31,13 @@ public class MainMenu : MonoBehaviour
     public Image howToPlayImage;
     public Image[] howToPlayIndicators;
     private Color howToPlayImageIndicatorColor;
+    private AudioManager audioManager;
 
     //Controls
     public GameObject controlsPanel;
+
+    //ContactUs
+    public GameObject contactUsPanel;
 
 	//Input
 	private bool InDw_Down => Input.GetButtonDown("Down");
@@ -67,7 +72,8 @@ public class MainMenu : MonoBehaviour
         controlsPanel.gameObject.SetActive(false);
 
         AudioListener.volume = 1.0f;
-        AudioManager.instance.PlayThisClip("TitleTheme");
+        audioManager = AudioManager.instance;
+        audioManager.PlayThisClip("TitleTheme");
     }
 
     void Update()
@@ -83,6 +89,9 @@ public class MainMenu : MonoBehaviour
             case MainMenuState.controls:
                 Controls();
                 break;
+            case MainMenuState.contactUs:
+                ContactUs();
+                break;
         }
        
     }
@@ -96,16 +105,19 @@ public class MainMenu : MonoBehaviour
                 {
                     menuIndex++;
                     hilighter.transform.localPosition = hPos[1].transform.localPosition;
+                    audioManager.PlayThisEffect("uiScroll");
 
                 }
                 else if (InDW_Up)
                 {
                     menuIndex = 3;
-                    hilighter.transform.localPosition = hPos[3].transform.localPosition;
+                    hilighter.transform.localPosition = hPos[4].transform.localPosition;
+                    audioManager.PlayThisEffect("uiScroll");
 
                 }
                 else if (InDW_Confirm) //Player has chosen start game
                 {
+                    audioManager.PlayThisEffect("uiConfirm");
                     AudioManager.instance.PlayThisClip("WorldMapMusic1");
                     UIBTL.conversationAfterBattle = false;
                     BattleManager.battleInProgress = false;
@@ -117,16 +129,19 @@ public class MainMenu : MonoBehaviour
                 {
                     menuIndex++;
                     hilighter.transform.localPosition = hPos[2].transform.localPosition;
+                    audioManager.PlayThisEffect("uiScroll");
 
                 }
                 else if (InDW_Up)
                 {
                     menuIndex--;
                     hilighter.transform.localPosition = hPos[0].transform.localPosition;
+                    audioManager.PlayThisEffect("uiScroll");
 
                 }
                 else if (InDW_Confirm) //Chosen How To Play
                 {
+                    audioManager.PlayThisEffect("uiConfirm");
                     menuIndex = 0;
                     howToPlayPanel.gameObject.SetActive(true);
                     howToPlayImage.sprite = howToPlayImagesPool[0];
@@ -146,16 +161,19 @@ public class MainMenu : MonoBehaviour
                 {
                     menuIndex++;
                     hilighter.transform.localPosition = hPos[3].transform.localPosition;
+                    audioManager.PlayThisEffect("uiScroll");
 
                 }
                 else if (InDW_Up)
                 {
                     menuIndex--;
                     hilighter.transform.localPosition = hPos[1].transform.localPosition;
+                    audioManager.PlayThisEffect("uiScroll");
 
                 }
                 else if (InDW_Confirm) //Player has chosen controls
                 {
+                    audioManager.PlayThisEffect("uiConfirm");
                     controlsPanel.gameObject.SetActive(true);
                     currentState = MainMenuState.controls;
                 }
@@ -163,18 +181,44 @@ public class MainMenu : MonoBehaviour
             case 3:
                 if (InDw_Down)
                 {
-                    menuIndex = 0;
-                    hilighter.transform.localPosition = hPos[0].transform.localPosition;
+                    menuIndex = 4;
+                    hilighter.transform.localPosition = hPos[4].transform.localPosition;
+                    audioManager.PlayThisEffect("uiScroll");
 
                 }
                 else if (InDW_Up)
                 {
                     menuIndex--;
                     hilighter.transform.localPosition = hPos[2].transform.localPosition;
+                    audioManager.PlayThisEffect("uiScroll");
 
                 }
                 else if (InDW_Confirm) //Player has chosen to quit
                 {
+                    audioManager.PlayThisEffect("uiConfirm");
+                    contactUsPanel.gameObject.SetActive(true);
+                    Cursor.visible = true;
+                    currentState = MainMenuState.contactUs;
+                }
+                break;
+            case 4:
+                if (InDw_Down)
+                {
+                    menuIndex = 0;
+                    hilighter.transform.localPosition = hPos[0].transform.localPosition;
+                    audioManager.PlayThisEffect("uiScroll");
+
+                }
+                else if (InDW_Up)
+                {
+                    menuIndex--;
+                    hilighter.transform.localPosition = hPos[3].transform.localPosition;
+                    audioManager.PlayThisEffect("uiScroll");
+
+                }
+                else if (InDW_Confirm) //Player has chosen to quit
+                {
+                    audioManager.PlayThisEffect("uiConfirm");
                     Application.Quit();
                 }
                 break;
@@ -197,6 +241,7 @@ public class MainMenu : MonoBehaviour
         {
             if (menuIndex < 6)
             {
+                audioManager.PlayThisEffect("uiScroll");
                 menuIndex++;
                 howToPlayImage.sprite = howToPlayImagesPool[menuIndex];
                 howToPlayIndicators[menuIndex - 1].color = howToPlayImageIndicatorColor;
@@ -206,6 +251,7 @@ public class MainMenu : MonoBehaviour
             }
             else if (menuIndex >= 6)
             {
+                audioManager.PlayThisEffect("uiScroll");
                 menuIndex = 0;
                 howToPlayImage.sprite = howToPlayImagesPool[menuIndex];
                 howToPlayIndicators[6].color = howToPlayImageIndicatorColor;
@@ -218,6 +264,7 @@ public class MainMenu : MonoBehaviour
         {
             if (menuIndex > 0)
             {
+                audioManager.PlayThisEffect("uiScroll");
                 menuIndex--;
                 howToPlayImage.sprite = howToPlayImagesPool[menuIndex];
                 howToPlayIndicators[menuIndex + 1].color = howToPlayImageIndicatorColor;
@@ -227,6 +274,7 @@ public class MainMenu : MonoBehaviour
             }
             else if (menuIndex <= 0)
             {
+                audioManager.PlayThisEffect("uiScroll");
                 menuIndex = 6;
                 howToPlayImage.sprite = howToPlayImagesPool[menuIndex];
                 howToPlayIndicators[0].color = howToPlayImageIndicatorColor;
@@ -237,6 +285,7 @@ public class MainMenu : MonoBehaviour
         }
         else if(InDW_Cancel)
         {
+            audioManager.PlayThisEffect("uiCancel");
             menuIndex = 1;
             howToPlayPanel.gameObject.SetActive(false);
             currentState = MainMenuState.main;
@@ -247,9 +296,22 @@ public class MainMenu : MonoBehaviour
     {
         if (InDW_Cancel)
         {
+            audioManager.PlayThisEffect("uiCancel");
             menuIndex = 2;
             controlsPanel.gameObject.SetActive(false);
             currentState = MainMenuState.main;
+        }
+    }
+
+    private void ContactUs()
+    {
+        if (InDW_Cancel)
+        {
+            audioManager.PlayThisEffect("uiCancel");
+            menuIndex = 3;
+            contactUsPanel.gameObject.SetActive(false);
+            currentState = MainMenuState.main;
+            Cursor.visible = false;
         }
     }
 }
